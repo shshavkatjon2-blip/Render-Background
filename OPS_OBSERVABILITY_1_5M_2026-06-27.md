@@ -1,39 +1,27 @@
-# Ops observability - 1.5M
+# Live check result - 2026-06-27
 
-This package adds safe public diagnostics for deployment and load-readiness checks.
-
-## Endpoints
+Latest expected package version:
 
 ```text
-GET /healthz
-GET /readyz
-GET /scanner/healthz
-GET /ops/readiness
-GET /ops/metrics
-GET /ops/deploy
-GET /ops/live
+v1.7.8-1-5m-runtime-capacity-20260627
 ```
 
-These endpoints do not return secrets, wallet private keys, transaction hashes, or raw user rows.
+The public API can be live while the scanner worker is still stale.
 
-## What to watch
-
-- `/scanner/healthz` must become `status=ok` before real TON deposit testing.
-- `/ops/readiness` should become `status=ready` before a public push.
-- `/ops/metrics` shows process uptime, memory, request counters, slow requests, and rate-limit backend.
-- `/ops/deploy` shows whether API and scanner service shape are correct.
-- `/ops/live` combines scanner, metrics, deploy shape, and warnings in one response.
-
-## Local package check
+Check after deploying both API and scanner worker:
 
 ```powershell
-npm run verify:package
+curl.exe -s https://vidipay-backend.onrender.com/healthz
+curl.exe -s https://vidipay-backend.onrender.com/scanner/healthz
+curl.exe -s https://vidipay-backend.onrender.com/ops/live
 ```
 
-## Live check
+Expected:
 
-```powershell
-npm run verify:live
+```text
+/healthz version=v1.7.8-1-5m-runtime-capacity-20260627
+/scanner/healthz status=ok
+/ops/live status=ready
 ```
 
-If scanner is still stale, deploy or fix the separate Render Background Worker.
+If scanner is stale, fix the separate Render Background Worker before real TON deposit testing.

@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 
 const root = path.resolve(__dirname, "..");
-const expectedVersion = "v1.7.7-1-5m-ops-observability-20260627";
+const expectedVersion = "v1.7.8-1-5m-runtime-capacity-20260627";
 
 function read(relativePath) {
   return fs.readFileSync(path.join(root, relativePath), "utf8");
@@ -51,9 +51,12 @@ function main() {
   assertIncludes(errors, "server.js", expectedVersion, "expected backend version");
   assertIncludes(errors, "server.js", 'app.get("/ops/readiness"', "/ops/readiness endpoint");
   assertIncludes(errors, "server.js", 'app.get("/ops/metrics"', "/ops/metrics endpoint");
+  assertIncludes(errors, "server.js", 'app.get("/ops/capacity"', "/ops/capacity endpoint");
   assertIncludes(errors, "server.js", 'app.get("/ops/deploy"', "/ops/deploy endpoint");
   assertIncludes(errors, "server.js", 'app.get("/ops/live"', "/ops/live endpoint");
   assertIncludes(errors, "server.js", "buildProcessMetrics", "process metrics helper");
+  assertIncludes(errors, "server.js", "buildCapacityReadiness", "capacity helper");
+  assertIncludes(errors, "server.js", "shutdownGracefully", "graceful shutdown");
   assertIncludes(errors, "scripts/start-scanner.js", "Missing required Render env", "scanner env fail-fast");
   assertIncludes(errors, "scripts/verify-live-1_5m.js", expectedVersion, "verify-live expected version");
   assertIncludes(errors, "package.json", "\"verify:package\"", "package verify script");
@@ -65,6 +68,7 @@ function main() {
   const forbiddenPatterns = [
     { regex: /v1\.7\.5-1-5m-worker-failfast-20260627/, label: "old backend version" },
     { regex: /v1\.7\.6-1-5m-readiness-doctor-20260627/, label: "old backend version" },
+    { regex: /v1\.7\.7-1-5m-ops-observability-20260627/, label: "old backend version" },
     { regex: /UPLOAD_READY_SCANNER_WORKER_ONLY_1_5M_2026-06-27\.zip/, label: "old non-safe scanner zip name" },
     { regex: /UPLOAD_READY_1_5M_BACKEND_STAGING_2026-06-26\.zip/, label: "old non-safe backend zip name" },
     { regex: /ACTIVATION_FEE_TON=0(?:\r?\n|$)/, label: "old activation fee value" },

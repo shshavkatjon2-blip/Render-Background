@@ -32,9 +32,15 @@ if (missingEnvs.length > 0) {
 
 const app = express();
 
-const BACKEND_VERSION = "v1.7.7-1-5m-ops-observability-20260627";
+const BACKEND_VERSION = "v1.7.8-1-5m-runtime-capacity-20260627";
 const PROCESS_STARTED_AT = new Date();
 const REQUEST_SLOW_MS = Math.max(250, Number(process.env.REQUEST_SLOW_MS || 1500));
+const SERVER_KEEP_ALIVE_TIMEOUT_MS = Math.max(5000, Number(process.env.SERVER_KEEP_ALIVE_TIMEOUT_MS || 65000));
+const SERVER_HEADERS_TIMEOUT_MS = Math.max(SERVER_KEEP_ALIVE_TIMEOUT_MS + 1000, Number(process.env.SERVER_HEADERS_TIMEOUT_MS || 70000));
+const SERVER_REQUEST_TIMEOUT_MS = Math.max(30000, Number(process.env.SERVER_REQUEST_TIMEOUT_MS || 120000));
+const SHUTDOWN_GRACE_MS = Math.max(5000, Number(process.env.SHUTDOWN_GRACE_MS || 25000));
+const CAPACITY_INITIAL_USERS = Math.max(1, Number(process.env.CAPACITY_INITIAL_USERS || 100000));
+const CAPACITY_TARGET_USERS = Math.max(CAPACITY_INITIAL_USERS, Number(process.env.CAPACITY_TARGET_USERS || 1500000));
 const opsCounters = {
   requests_total: 0,
   responses_total: 0,
@@ -49,6 +55,13 @@ const opsCounters = {
     "4xx": 0,
     "5xx": 0
   }
+};
+const serverRuntime = {
+  shutting_down: false,
+  shutdown_started_at: null,
+  active_requests: 0,
+  highest_active_requests: 0,
+  last_signal: null
 };
 const WEBAPP_VERSION = "wallet-toncoin-v21-watch-balance-lock-20260625";
 const CANONICAL_PUBLIC_BACKEND_URL = "https://vidipay-backend.onrender.com";
@@ -219,10 +232,13 @@ app.use((req, res, next) => {
 
 app.use((req, res, next) => {
   const started = process.hrtime.bigint();
+  serverRuntime.active_requests += 1;
+  serverRuntime.highest_active_requests = Math.max(serverRuntime.highest_active_requests, serverRuntime.active_requests);
   opsCounters.requests_total += 1;
   opsCounters.last_request_at = new Date().toISOString();
 
   res.on("finish", () => {
+    serverRuntime.active_requests = Math.max(0, serverRuntime.active_requests - 1);
     const durationMs = Number(process.hrtime.bigint() - started) / 1e6;
     const statusClass = `${Math.floor(res.statusCode / 100)}xx`;
     opsCounters.responses_total += 1;
@@ -1864,7 +1880,7 @@ function getScannerRecommendedChecks(status) {
     "Confirm worker env has WORKER_MODE=scanner and PAYMENT_SCANNER_ENABLED=true.",
     "Confirm worker env has real SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, TONAPI_KEY, and TONAPI_BASE_URL.",
     "Confirm worker uses the same Supabase project as the public API.",
-    "Open Render worker logs; v1.7.7 fails fast when required env is missing."
+    "Open Render worker logs; v1.7.8 fails fast when required env is missing."
   ];
 }
 
@@ -1920,7 +1936,22 @@ function buildProcessMetrics() {
     },
     requests: {
       ...opsCounters,
-      max_duration_ms: Math.round(opsCounters.max_duration_ms)
+      max_duration_ms: Math.round(opsCounters.max_duration_ms),
+      active_requests: serverRuntime.active_requests,
+      highest_active_requests: serverRuntime.highest_active_requests
+    },
+    runtime: {
+      shutting_down: serverRuntime.shutting_down,
+      shutdown_started_at: serverRuntime.shutdown_started_at,
+      last_signal: serverRuntime.last_signal,
+      keep_alive_timeout_ms: SERVER_KEEP_ALIVE_TIMEOUT_MS,
+      headers_timeout_ms: SERVER_HEADERS_TIMEOUT_MS,
+      request_timeout_ms: SERVER_REQUEST_TIMEOUT_MS,
+      shutdown_grace_ms: SHUTDOWN_GRACE_MS
+    },
+    capacity_targets: {
+      initial_users: CAPACITY_INITIAL_USERS,
+      target_users: CAPACITY_TARGET_USERS
     },
     rate_limit: {
       backend: RATE_LIMIT_BACKEND,
@@ -1956,6 +1987,9 @@ function buildEnvPresenceSummary() {
 
 function buildDeploymentShape(scanner) {
   const apiMode = !SCANNER_WORKER_MODE;
+  const paymentRangeOk =
+    Number(PAYMENT_MIN_RECEIVED_TON) <= Number(PAYMENT_AMOUNT_TON) &&
+    Number(PAYMENT_AMOUNT_TON) <= Number(PAYMENT_MAX_RECEIVED_TON);
   return {
     version: BACKEND_VERSION,
     service_role: SCANNER_WORKER_MODE ? "scanner_worker" : "public_api",
@@ -1983,10 +2017,45 @@ function buildDeploymentShape(scanner) {
     required_before_100k_plus: {
       scanner_worker_ok: Boolean(scanner?.status === "ok"),
       api_redis_ok: apiMode ? RATE_LIMIT_BACKEND === "redis" && Boolean(REDIS_URL) : true,
-      payment_range_ok:
-        Number(PAYMENT_MIN_RECEIVED_TON) <= Number(PAYMENT_AMOUNT_TON) &&
-        Number(PAYMENT_AMOUNT_TON) <= Number(PAYMENT_MAX_RECEIVED_TON)
+      payment_range_ok: paymentRangeOk
     }
+  };
+}
+
+function buildCapacityReadiness(scanner) {
+  const apiMode = !SCANNER_WORKER_MODE;
+  const paymentRangeOk =
+    Number(PAYMENT_MIN_RECEIVED_TON) <= Number(PAYMENT_AMOUNT_TON) &&
+    Number(PAYMENT_AMOUNT_TON) <= Number(PAYMENT_MAX_RECEIVED_TON);
+  const redisOk = apiMode ? RATE_LIMIT_BACKEND === "redis" && Boolean(REDIS_URL) : true;
+  const scannerOk = Boolean(scanner?.status === "ok" && scanner?.scanner_worker_alive === true);
+  const blockers = [];
+  const warnings = [];
+
+  if (!paymentRangeOk) blockers.push("TON payment amount range is invalid.");
+  if (!scannerOk) blockers.push("Scanner Background Worker is not heartbeating.");
+  if (!redisOk) blockers.push("Public API Redis rate limit backend is required before 100K+ traffic.");
+  if (!TON_AUTO_PAYOUT_ENABLED) warnings.push("TON auto payout is disabled; deposit scanning can work, but refund payout will require signer/RPC setup.");
+  if (PAYMENT_SCAN_BATCH_SIZE < 50) warnings.push("PAYMENT_SCAN_BATCH_SIZE is below the current 1.5M baseline.");
+
+  return {
+    status: blockers.length ? "blocked" : (warnings.length ? "warning" : "ready"),
+    initial_users: CAPACITY_INITIAL_USERS,
+    target_users: CAPACITY_TARGET_USERS,
+    ready_for_real_ton_deposit_test: scannerOk && paymentRangeOk,
+    ready_for_100k_public_traffic: scannerOk && paymentRangeOk && redisOk,
+    ready_for_1_5m_public_traffic: scannerOk && paymentRangeOk && redisOk && RATE_LIMIT_BACKEND === "redis",
+    checks: {
+      scanner_ok: scannerOk,
+      payment_range_ok: paymentRangeOk,
+      api_redis_ok: redisOk,
+      api_scanner_disabled: apiMode ? PAYMENT_SCANNER_ENABLED === false : true,
+      ton_auto_payout_enabled: TON_AUTO_PAYOUT_ENABLED,
+      request_timeout_ms: SERVER_REQUEST_TIMEOUT_MS,
+      keep_alive_timeout_ms: SERVER_KEEP_ALIVE_TIMEOUT_MS
+    },
+    blockers,
+    warnings
   };
 }
 
@@ -2532,6 +2601,7 @@ app.get("/ops/readiness", async (req, res) => {
       readPaymentScannerHeartbeats()
     ]);
     const scanner = buildPublicPaymentScannerHealth(scannerHeartbeats);
+    const capacity = buildCapacityReadiness(scanner);
     const paymentRangeOk =
       Number(PAYMENT_MIN_RECEIVED_TON) <= Number(PAYMENT_AMOUNT_TON) &&
       Number(PAYMENT_AMOUNT_TON) <= Number(PAYMENT_MAX_RECEIVED_TON);
@@ -2566,6 +2636,7 @@ app.get("/ops/readiness", async (req, res) => {
         auto_payout_enabled: TON_AUTO_PAYOUT_ENABLED
       },
       scanner,
+      capacity,
       warnings
     });
   } catch (err) {
@@ -2581,15 +2652,37 @@ app.get("/ops/metrics", (req, res) => {
   res.json(buildProcessMetrics());
 });
 
-app.get("/ops/deploy", async (req, res) => {
+app.get("/ops/capacity", async (req, res) => {
   try {
     const scannerHeartbeats = await readPaymentScannerHeartbeats();
     const scanner = buildPublicPaymentScannerHealth(scannerHeartbeats);
     res.json({
-      status: scanner.status === "ok" ? "ready" : "action_required",
+      version: BACKEND_VERSION,
+      worker_mode: SCANNER_WORKER_MODE ? "scanner" : "api",
+      capacity: buildCapacityReadiness(scanner),
+      scanner,
+      deployment: buildDeploymentShape(scanner)
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/deploy", async (req, res) => {
+  try {
+    const scannerHeartbeats = await readPaymentScannerHeartbeats();
+    const scanner = buildPublicPaymentScannerHealth(scannerHeartbeats);
+    const capacity = buildCapacityReadiness(scanner);
+    res.json({
+      status: capacity.status === "ready" ? "ready" : "action_required",
       version: BACKEND_VERSION,
       env_present: buildEnvPresenceSummary(),
       deployment: buildDeploymentShape(scanner),
+      capacity,
       scanner
     });
   } catch (err) {
@@ -2609,6 +2702,7 @@ app.get("/ops/live", async (req, res) => {
     ]);
     const scanner = buildPublicPaymentScannerHealth(scannerHeartbeats);
     const metrics = buildProcessMetrics();
+    const capacity = buildCapacityReadiness(scanner);
     const warnings = [];
     if (scanner.status !== "ok") warnings.push(scanner.message);
     if (!SCANNER_WORKER_MODE && !(RATE_LIMIT_BACKEND === "redis" && REDIS_URL)) warnings.push("API Redis is not configured for 100K+ traffic.");
@@ -2623,6 +2717,7 @@ app.get("/ops/live", async (req, res) => {
       scanner,
       metrics,
       deployment: buildDeploymentShape(scanner),
+      capacity,
       warnings
     });
   } catch (err) {
@@ -4633,6 +4728,7 @@ app.post("/admin/payment-scan/run", requireAdmin, async (req, res) => {
 ========================================================= */
 
 const PORT = process.env.PORT || 3000;
+let httpServer = null;
 function startPaymentScanner() {
   if (!PAYMENT_SCANNER_ENABLED) {
     throw new Error("[scanner] Refusing to start because PAYMENT_SCANNER_ENABLED is not true");
@@ -4650,7 +4746,36 @@ function startPaymentScanner() {
 if (SCANNER_WORKER_MODE) {
   startPaymentScanner();
 } else {
-  app.listen(PORT, () => {
+  httpServer = app.listen(PORT, () => {
   // Maxfiylik uchun terminal loglari o'chirildi
   });
+  httpServer.keepAliveTimeout = SERVER_KEEP_ALIVE_TIMEOUT_MS;
+  httpServer.headersTimeout = SERVER_HEADERS_TIMEOUT_MS;
+  httpServer.requestTimeout = SERVER_REQUEST_TIMEOUT_MS;
 }
+
+function shutdownGracefully(signal) {
+  if (serverRuntime.shutting_down) return;
+  serverRuntime.shutting_down = true;
+  serverRuntime.shutdown_started_at = new Date().toISOString();
+  serverRuntime.last_signal = signal;
+
+  const forceExit = setTimeout(() => {
+    process.exit(0);
+  }, SHUTDOWN_GRACE_MS);
+  forceExit.unref?.();
+
+  if (httpServer) {
+    httpServer.close(() => {
+      clearTimeout(forceExit);
+      process.exit(0);
+    });
+    return;
+  }
+
+  clearTimeout(forceExit);
+  process.exit(0);
+}
+
+process.on("SIGTERM", () => shutdownGracefully("SIGTERM"));
+process.on("SIGINT", () => shutdownGracefully("SIGINT"));

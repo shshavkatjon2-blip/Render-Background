@@ -107,6 +107,11 @@ async function main() {
       bodyOk: body => body && typeof body.uptime_seconds === "number"
     },
     {
+      name: "ops capacity",
+      path: "/ops/capacity",
+      bodyOk: body => body && body.capacity && ["ready", "warning", "blocked"].includes(body.capacity.status)
+    },
+    {
       name: "ops deploy",
       path: "/ops/deploy",
       bodyOk: body => body && ["ready", "action_required", "not_ready"].includes(body.status)

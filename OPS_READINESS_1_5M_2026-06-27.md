@@ -1,44 +1,41 @@
-# Ops readiness - 1.5M
+# Ops observability - 1.5M
 
-New endpoint:
+This package adds safe public diagnostics for deployment and load-readiness checks.
+
+## Endpoints
 
 ```text
+GET /healthz
+GET /readyz
+GET /scanner/healthz
 GET /ops/readiness
+GET /ops/metrics
+GET /ops/capacity
+GET /ops/deploy
+GET /ops/live
 ```
 
-It is safe for public diagnostics. It does not return secrets, user data, wallet addresses, transaction hashes, or raw database rows.
+These endpoints do not return secrets, wallet private keys, transaction hashes, or raw user rows.
 
-Expected after API and scanner worker deploy:
+## What to watch
 
-```text
-status=ready
-scanner.status=ok
-scanner.scanner_worker_alive=true
-checks.payment_range_ok=true
-```
+- `/scanner/healthz` must become `status=ok` before real TON deposit testing.
+- `/ops/readiness` should become `status=ready` before a public push.
+- `/ops/metrics` shows process uptime, memory, request counters, slow requests, and rate-limit backend.
+- `/ops/capacity` shows whether real TON deposit testing, 100K traffic, and 1.5M rollout are blocked or ready.
+- `/ops/deploy` shows whether API and scanner service shape are correct.
+- `/ops/live` combines scanner, metrics, deploy shape, and warnings in one response.
 
-If the public API is live but scanner worker is not running:
-
-```text
-status=action_required
-scanner.status=stale
-```
-
-Most common fixes for `stale`:
-
-1. Render scanner service must be `Background Worker`.
-2. Start command must be `npm run start:scanner`.
-3. Worker must use the same `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` as the API.
-4. Worker must have a real `TONAPI_KEY`.
-5. `COPY_THIS_SCANNER_HEARTBEAT_SQL_1_5M.sql` must be run in the same Supabase project.
-
-Quick checks:
+## Local package check
 
 ```powershell
-curl.exe -s https://vidipay-backend.onrender.com/healthz
-curl.exe -s https://vidipay-backend.onrender.com/scanner/healthz
-curl.exe -s https://vidipay-backend.onrender.com/ops/readiness
-curl.exe -s https://vidipay-backend.onrender.com/ops/metrics
-curl.exe -s https://vidipay-backend.onrender.com/ops/deploy
-curl.exe -s https://vidipay-backend.onrender.com/ops/live
+npm run verify:package
 ```
+
+## Live check
+
+```powershell
+npm run verify:live
+```
+
+If scanner is still stale, deploy or fix the separate Render Background Worker.

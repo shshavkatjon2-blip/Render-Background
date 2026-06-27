@@ -1,5 +1,5 @@
 const DEFAULT_BASE_URL = "https://vidipay-backend.onrender.com";
-const EXPECTED_VERSION = "v1.7.7-1-5m-ops-observability-20260627";
+const EXPECTED_VERSION = "v1.7.8-1-5m-runtime-capacity-20260627";
 const DEFAULT_TIMEOUT_MS = 15000;
 
 function readEnv(name, fallback = "") {
@@ -85,6 +85,7 @@ async function main() {
     ["scanner", "/scanner/healthz"],
     ["readiness", "/ops/readiness"],
     ["metrics", "/ops/metrics"],
+    ["capacity", "/ops/capacity"],
     ["deploy", "/ops/deploy"],
     ["live", "/ops/live"],
     ["root", "/"]
@@ -97,6 +98,7 @@ async function main() {
   const settingsVersionOk = isExpectedVersion(results.settings.body);
   const readinessVersionOk = isExpectedVersion(results.readiness.body);
   const metricsVersionOk = isExpectedVersion(results.metrics.body);
+  const capacityVersionOk = isExpectedVersion(results.capacity.body);
   const deployVersionOk = isExpectedVersion(results.deploy.body);
   const liveVersionOk = isExpectedVersion(results.live.body);
   const scanner = results.scanner.body;
@@ -108,6 +110,7 @@ async function main() {
   console.log(statusLine("scanner", results.scanner, scannerAdvice(scanner)));
   console.log(statusLine("readiness", results.readiness, readinessVersionOk ? `status=${results.readiness.body?.status || "unknown"}` : "version-mismatch"));
   console.log(statusLine("metrics", results.metrics, metricsVersionOk ? "version-ok" : "version-mismatch"));
+  console.log(statusLine("capacity", results.capacity, capacityVersionOk ? `status=${results.capacity.body?.capacity?.status || "unknown"}` : "version-mismatch"));
   console.log(statusLine("deploy", results.deploy, deployVersionOk ? `status=${results.deploy.body?.status || "unknown"}` : "version-mismatch"));
   console.log(statusLine("live", results.live, liveVersionOk ? `status=${results.live.body?.status || "unknown"}` : "version-mismatch"));
   console.log(statusLine("root", results.root));
@@ -129,6 +132,7 @@ async function main() {
   if (!settingsVersionOk) failures.push("settings version is not the expected package version");
   if (!readinessVersionOk) failures.push("readiness version is not the expected package version");
   if (!metricsVersionOk) failures.push("metrics version is not the expected package version");
+  if (!capacityVersionOk) failures.push("capacity version is not the expected package version");
   if (!deployVersionOk) failures.push("deploy version is not the expected package version");
   if (!liveVersionOk) failures.push("live version is not the expected package version");
   if (!scannerOk) failures.push(scannerAdvice(scanner));

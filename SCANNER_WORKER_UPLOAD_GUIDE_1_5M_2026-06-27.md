@@ -79,7 +79,7 @@ TON_SIGNER_ENABLED=false
 
 ## Fail-fast behavior
 
-Version `v1.7.7-1-5m-ops-observability-20260627` refuses to start the scanner worker if these values are missing or placeholder-like:
+Version `v1.7.8-1-5m-runtime-capacity-20260627` refuses to start the scanner worker if these values are missing or placeholder-like:
 
 ```text
 SUPABASE_URL
@@ -91,7 +91,7 @@ PAYMENT_SCANNER_ENABLED=true
 
 This is intentional. It prevents a fake live worker that never confirms deposits.
 
-Version `v1.7.7-1-5m-ops-observability-20260627` also adds `/ops/readiness`, which shows whether the API, scanner heartbeat, and TON payment range are ready for real testing.
+Version `v1.7.8-1-5m-runtime-capacity-20260627` also adds `/ops/readiness`, which shows whether the API, scanner heartbeat, and TON payment range are ready for real testing.
 
 ## Verify after deploy
 
