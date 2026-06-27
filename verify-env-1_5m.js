@@ -74,8 +74,7 @@ function main() {
     "GAME_URL",
     "ALLOWED_ORIGINS",
     "TONAPI_KEY",
-    "TONAPI_BASE_URL",
-    "REDIS_URL"
+    "TONAPI_BASE_URL"
   ]);
 
   checkUrl(errors, "SUPABASE_URL", { required: false });
@@ -84,8 +83,18 @@ function main() {
   checkUrl(errors, "GAME_URL", { required: false });
   checkUrl(errors, "TONAPI_BASE_URL", { required: false });
 
-  if (value("RATE_LIMIT_BACKEND").toLowerCase() !== "redis") {
-    errors.push("RATE_LIMIT_BACKEND must be redis for 1.5M mode");
+  const rateLimitBackend = value("RATE_LIMIT_BACKEND").toLowerCase();
+  if (mode === "api" && rateLimitBackend !== "redis") {
+    errors.push("RATE_LIMIT_BACKEND must be redis for 1.5M API mode");
+  }
+  if (mode === "api" && !value("REDIS_URL")) {
+    errors.push("Missing REDIS_URL");
+  }
+  if (mode === "scanner" && rateLimitBackend !== "redis") {
+    warnings.push("Scanner worker is using memory rate limit fallback; this is OK for scanner-only worker");
+  }
+  if (mode === "scanner" && !value("REDIS_URL")) {
+    warnings.push("REDIS_URL is empty; scanner can still run, but API service should use Redis for 1.5M traffic");
   }
 
   checkPositiveNumber(errors, "ACTIVATION_DEPOSIT_TON", { min: 0.000001, max: 1000000 });

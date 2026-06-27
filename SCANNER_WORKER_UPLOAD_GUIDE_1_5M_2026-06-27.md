@@ -40,24 +40,30 @@ Do not use this as the public API web service. It is only for scanner worker.
 
 ## Required Env
 
-Use:
+Use this filled env file first:
+
+```text
+outputs/RENDER_SCANNER_WORKER_ENV_READY_FILLED_1_5M.env
+```
+
+Backup template:
 
 ```text
 outputs/RENDER_SCANNER_WORKER_ENV_COMPLETE_1_5M.env
 ```
 
-Copy secret values from the public API service:
+The filled env was generated from local existing keys. These required keys are already filled when `required_missing_count=0`:
 
 ```text
 SUPABASE_URL
-SUPABASE_ANON_KEY
 SUPABASE_SERVICE_ROLE_KEY
 ADMIN_TOKEN
 BOT_TOKEN
 TELEGRAM_WEBHOOK_SECRET
 TONAPI_KEY
-REDIS_URL
 ```
+
+`REDIS_URL` was not found locally. The scanner worker can run without Redis because this worker does not serve public traffic. Add Redis later for the public API service before heavy traffic.
 
 Keep these exactly:
 
