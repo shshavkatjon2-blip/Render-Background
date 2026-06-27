@@ -1,52 +1,27 @@
-# Live Check Result - 2026-06-27
+create table if not exists public.payment_scanner_heartbeats (
+  worker_id text primary key,
+  worker_mode text not null default 'scanner',
+  network text not null default 'TON',
+  token text not null default 'TON',
+  scanner_enabled boolean not null default false,
+  running boolean not null default false,
+  last_seen_at timestamptz not null default now(),
+  last_run_at timestamptz,
+  last_error text,
+  checked_total bigint not null default 0,
+  confirmed_total bigint not null default 0,
+  scan_interval_ms integer not null default 15000,
+  scan_batch_size integer not null default 50,
+  updated_at timestamptz not null default now()
+);
 
-Checked live URL:
+create index if not exists idx_payment_scanner_heartbeats_last_seen
+  on public.payment_scanner_heartbeats (last_seen_at desc);
 
-```text
-https://vidipay-backend.onrender.com
-```
+create index if not exists idx_payment_scanner_heartbeats_network_token_seen
+  on public.payment_scanner_heartbeats (network, token, last_seen_at desc);
 
-## Passed
-
-- `/healthz` is OK.
-- `/readyz` is ready.
-- Backend version is `v1.7.3-1-5m-scanner-heartbeat-20260627`.
-- Public API worker mode is `api`.
-- Public API scanner is disabled: `payment_scanner_enabled=false`.
-- `/payment/status/8188152343` returns a TON wallet address.
-- Wallet pool is loaded:
-  - total: `100054`
-  - active: `100054`
-  - assigned: `50`
-  - available: `100004`
-- Admin endpoints answer.
-
-## Not Passed Yet
-
-Scanner worker heartbeat:
-
-```text
-heartbeat_available=true
-scanner_worker_alive=false
-heartbeats=[]
-```
-
-Meaning:
-
-```text
-API is deployed, but the separate scanner Background Worker is not running or is using wrong env/Supabase keys.
-```
-
-## Next Required Action
-
-Deploy the scanner as a separate Render Background Worker using:
-
-```text
-outputs/UPLOAD_READY_SCANNER_WORKER_ONLY_1_5M_2026-06-27.zip
-```
-
-Start command:
-
-```text
-npm run start:scanner
-```
+select
+  'scanner_heartbeat_ready' as status,
+  count(*) as existing_workers
+from public.payment_scanner_heartbeats;

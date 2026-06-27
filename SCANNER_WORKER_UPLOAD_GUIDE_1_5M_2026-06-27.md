@@ -3,7 +3,7 @@
 Live API is already correct:
 
 ```text
-version=v1.7.3-1-5m-scanner-heartbeat-20260627
+version=v1.7.4-1-5m-public-scanner-health-20260627
 worker_mode=api
 payment_scanner_enabled=false
 ```

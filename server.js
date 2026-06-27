@@ -32,7 +32,7 @@ if (missingEnvs.length > 0) {
 
 const app = express();
 
-const BACKEND_VERSION = "v1.7.3-1-5m-scanner-heartbeat-20260627";
+const BACKEND_VERSION = "v1.7.4-1-5m-public-scanner-health-20260627";
 const WEBAPP_VERSION = "wallet-toncoin-v21-watch-balance-lock-20260625";
 const CANONICAL_PUBLIC_BACKEND_URL = "https://vidipay-backend.onrender.com";
 const CANONICAL_PUBLIC_APP_URL = "https://shshavkatjon2-blip.github.io/vidipay-fronted";
@@ -1774,6 +1774,32 @@ function buildPaymentScannerStatus(heartbeatSnapshot = { available: false, error
   };
 }
 
+function buildPublicPaymentScannerHealth(heartbeatSnapshot = { available: false, error: null, rows: [] }) {
+  const scannerStatus = buildPaymentScannerStatus(heartbeatSnapshot);
+  const latestScanner = scannerStatus.latest_scanner_heartbeat || null;
+  const heartbeatAvailable = Boolean(scannerStatus.heartbeat_available);
+  const scannerAlive = scannerStatus.scanner_worker_alive === true;
+
+  return {
+    status: heartbeatAvailable ? (scannerAlive ? "ok" : "stale") : "unavailable",
+    version: BACKEND_VERSION,
+    network: PAYMENT_NETWORK,
+    token: PAYMENT_TOKEN,
+    worker_mode: SCANNER_WORKER_MODE ? "scanner" : "api",
+    heartbeat_available: heartbeatAvailable,
+    heartbeat_stale: scannerStatus.heartbeat_stale,
+    heartbeat_stale_after_ms: scannerStatus.heartbeat_stale_after_ms,
+    scanner_worker_alive: heartbeatAvailable ? scannerAlive : null,
+    latest_seen_at: latestScanner?.last_seen_at || null,
+    latest_run_at: latestScanner?.last_run_at || null,
+    last_error_present: Boolean(latestScanner?.last_error),
+    checked_total: Number(latestScanner?.checked_total || 0),
+    confirmed_total: Number(latestScanner?.confirmed_total || 0),
+    scan_interval_ms: Number(PAYMENT_SCAN_INTERVAL_MS || 0),
+    scan_batch_size: Number(PAYMENT_SCAN_BATCH_SIZE || 0)
+  };
+}
+
 async function claimPendingPaymentOrdersForScan(limit) {
   const claimSeconds = Math.max(30, Math.ceil(Number(PAYMENT_SCAN_INTERVAL_MS || 15000) / 1000) * 4);
   const { data: claimedOrders, error: claimError } = await supabase.rpc("claim_pending_payment_orders", {
@@ -2268,6 +2294,32 @@ app.get("/readyz", async (req, res) => {
     res.status(503).json({
       status: "not_ready",
       error: err.message
+    });
+  }
+});
+
+app.get("/scanner/healthz", async (req, res) => {
+  try {
+    const scannerHeartbeats = await readPaymentScannerHeartbeats();
+    res.json(buildPublicPaymentScannerHealth(scannerHeartbeats));
+  } catch (err) {
+    res.json({
+      status: "unavailable",
+      version: BACKEND_VERSION,
+      network: PAYMENT_NETWORK,
+      token: PAYMENT_TOKEN,
+      worker_mode: SCANNER_WORKER_MODE ? "scanner" : "api",
+      heartbeat_available: false,
+      heartbeat_stale: null,
+      heartbeat_stale_after_ms: Math.max(60000, Number(PAYMENT_SCAN_INTERVAL_MS || 15000) * 4),
+      scanner_worker_alive: null,
+      latest_seen_at: null,
+      latest_run_at: null,
+      last_error_present: true,
+      checked_total: 0,
+      confirmed_total: 0,
+      scan_interval_ms: Number(PAYMENT_SCAN_INTERVAL_MS || 0),
+      scan_batch_size: Number(PAYMENT_SCAN_BATCH_SIZE || 0)
     });
   }
 });
