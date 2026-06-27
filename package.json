@@ -14,6 +14,7 @@
     "verify:env": "node scripts/verify-env-1_5m.js",
     "verify:env:api": "node scripts/verify-env-1_5m.js api",
     "verify:env:scanner": "node scripts/verify-env-1_5m.js scanner",
+    "verify:live": "node scripts/verify-live-1_5m.js",
     "verify:staging": "node scripts/verify-staging-deploy.js",
     "wallets:verify": "node scripts/verify-ton-wallet-pool.js"
   },

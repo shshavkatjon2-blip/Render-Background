@@ -1,23 +1,27 @@
 # Scanner Worker Env Check Result - 2026-06-27
 
-Generated:
+Use this no-secret template:
 
 ```text
-outputs/RENDER_SCANNER_WORKER_ENV_READY_FILLED_1_5M.env
+outputs/UPLOAD_READY_SCANNER_WORKER_ONLY_1_5M_2026-06-27/RENDER_SCANNER_WORKER_ENV_NOW_NO_SECRETS.env
 ```
 
-Result:
+The template intentionally does not include real keys.
+
+Required real values must be pasted in Render Environment:
 
 ```text
-required_missing_count=0
-redis_present=false
-ENV CHECK OK
+SUPABASE_URL
+SUPABASE_SERVICE_ROLE_KEY
+TONAPI_KEY
+TONAPI_BASE_URL=https://tonapi.io
+WORKER_MODE=scanner
+PAYMENT_SCANNER_ENABLED=true
 ```
 
-Meaning:
+Expected worker behavior:
 
-- Scanner worker has the required Supabase service role, admin, bot, webhook, and TonAPI keys.
-- `SUPABASE_ANON_KEY` is not required by the backend scanner.
-- `REDIS_URL` was not found locally. Scanner worker can still run with `RATE_LIMIT_BACKEND=memory`.
-- Public API should still use Redis before heavy 1.5M traffic.
-- TON auto payout is disabled in this worker env. Deposit scanning can work; automatic refund payout requires a later signer/RPC setup.
+- If required values are missing, worker exits immediately with a clear Render log error.
+- If values are correct, `/scanner/healthz` becomes `status=ok` within 30-60 seconds.
+- Scanner worker can use `RATE_LIMIT_BACKEND=memory`; the public API should still use Redis before heavy traffic.
+- TON auto payout is disabled in this worker env. Deposit scanning can work; automatic refund payout requires signer/RPC setup.

@@ -32,7 +32,7 @@ if (missingEnvs.length > 0) {
 
 const app = express();
 
-const BACKEND_VERSION = "v1.7.4-1-5m-public-scanner-health-20260627";
+const BACKEND_VERSION = "v1.7.5-1-5m-worker-failfast-20260627";
 const WEBAPP_VERSION = "wallet-toncoin-v21-watch-balance-lock-20260625";
 const CANONICAL_PUBLIC_BACKEND_URL = "https://vidipay-backend.onrender.com";
 const CANONICAL_PUBLIC_APP_URL = "https://shshavkatjon2-blip.github.io/vidipay-fronted";
@@ -80,6 +80,32 @@ const SCANNER_WORKER_MODE = WORKER_MODE === "scanner";
 const PAYMENT_SCANNER_ENABLED = SCANNER_WORKER_MODE && process.env.PAYMENT_SCANNER_ENABLED !== "false";
 let tonSignerClientPromise = null;
 let tonSignerWalletIndexCache = null;
+
+function hasRealEnvValue(name) {
+  const raw = String(process.env[name] || "").trim();
+  if (!raw) return false;
+  if (/^(PASTE|CHANGE|TODO|YOUR_|placeholder)/i.test(raw)) return false;
+  return true;
+}
+
+function assertScannerWorkerEnv() {
+  if (!SCANNER_WORKER_MODE) return;
+  const required = [
+    "SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "TONAPI_KEY",
+    "TONAPI_BASE_URL"
+  ];
+  const missing = required.filter((name) => !hasRealEnvValue(name));
+  if (missing.length) {
+    throw new Error(`[scanner] Missing required Render env: ${missing.join(", ")}`);
+  }
+  if (!PAYMENT_SCANNER_ENABLED) {
+    throw new Error("[scanner] PAYMENT_SCANNER_ENABLED must be true when WORKER_MODE=scanner");
+  }
+}
+
+assertScannerWorkerEnv();
 
 function normalizeWebAppUrl(value, fallback) {
   const raw = String(value || "").trim();
@@ -4324,6 +4350,9 @@ app.post("/admin/payment-scan/run", requireAdmin, async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 function startPaymentScanner() {
+  if (!PAYMENT_SCANNER_ENABLED) {
+    throw new Error("[scanner] Refusing to start because PAYMENT_SCANNER_ENABLED is not true");
+  }
   setInterval(() => {
     scanPendingPaymentOrders().catch((err) => {
       paymentScannerState.lastError = err.message;
