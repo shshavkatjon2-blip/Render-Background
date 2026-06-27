@@ -1,10 +1,18 @@
-Upload this folder's contents to the root of the scanner worker GitHub repo.
+Upload these files to the scanner worker GitHub repo root.
 
 Render service type must be Background Worker.
 
-Default render.yaml creates 16 worker shards.
+Required root files:
 
-Use:
+server.js
+package.json
+render.yaml
+render-build-fix.cjs
+scripts/
+
+Default render.yaml creates 16 worker shards for 1.5M runtime.
+
+Render settings:
 
 Build Command: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
 Start Command: npm run start:scanner

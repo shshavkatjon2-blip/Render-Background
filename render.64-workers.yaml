@@ -1,5 +1,5 @@
 ﻿# VidiPay scanner worker blueprint (64 shards).
-# Default for 1.5M runtime: use 16 shards. Use 4 for low-cost smoke, 64/256 for larger traffic.
+# Use 16 shards for 1.5M runtime. Use 4 for smoke, 64/256 for future larger traffic.
 services:
   - type: worker
     name: vidipay-payment-scanner-64-0

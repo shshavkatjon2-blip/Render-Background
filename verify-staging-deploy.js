@@ -40,13 +40,12 @@ function main() {
     "scripts/verify-live-1_5m.js",
     "scripts/verify-staging-deploy.js",
     "scripts/verify-env-1_5m.js",
-    "RUN_HYPERSCALE_SQL_2026-06-27.sql",
-    "VERIFY_HYPERSCALE_SQL_2026-06-27.sql",
-    "READ_ME_FIRST_BACKGROUND_WORKER.md",
-    "env.scanner.hyperscale.template",
     "render.yaml",
-    "render.hyperscale-256-workers.yaml",
-    "UPLOAD_TO_RENDER_BACKGROUND_WORKER_ONLY.txt"
+    "render-build-fix.cjs",
+    "render.16-workers.yaml",
+    "render.64-workers.yaml",
+    "render.256-workers.yaml",
+    "README_UPLOAD_TO_SCANNER_WORKER_REPO.txt"
   ]) {
     if (!exists(file)) fail(errors, `Missing ${file}`);
   }
@@ -74,9 +73,11 @@ function main() {
   assertIncludes(errors, "render.yaml", "type: worker", "Render Background Worker type");
   assertIncludes(errors, "render.yaml", "startCommand: npm run start:scanner", "Render Background Worker start command");
   assertIncludes(errors, "render.yaml", "PAYMENT_SCANNER_SHARD_INDEX", "scanner shard index env marker");
-  assertIncludes(errors, "render.hyperscale-256-workers.yaml", "vidipay-payment-scanner-hyperscale-255", "256th scanner worker");
-  assertIncludes(errors, "RUN_HYPERSCALE_SQL_2026-06-27.sql", "claim_pending_payment_orders_sharded", "hyperscale sharded SQL function");
-  assertIncludes(errors, "env.scanner.hyperscale.template", "PAYMENT_SCANNER_SHARD_COUNT=256", "hyperscale scanner shard count env");
+  assertIncludes(errors, "render.16-workers.yaml", "vidipay-payment-scanner-16-15", "16th scanner worker");
+  assertIncludes(errors, "render.256-workers.yaml", "vidipay-payment-scanner-256-255", "256th scanner worker");
+  assertIncludes(errors, "server.js", "CAPACITY_TARGET_USERS || 1500000", "1.5M capacity target default");
+  assertIncludes(errors, "render-build-fix.cjs", "object-assign", "Render clean-install dependency guard");
+  assertIncludes(errors, "render-build-fix.cjs", "fs.rmSync(\"node_modules\"", "Render node_modules cleanup");
 
   const textFiles = walk(root)
     .filter((file) => /\.(js|json|env|txt|md|yaml|yml|sql)$/i.test(file))
