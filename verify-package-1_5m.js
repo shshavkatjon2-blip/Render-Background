@@ -1,5 +1,5 @@
 const DEFAULT_BASE_URL = "https://vidipay-backend.onrender.com";
-const EXPECTED_VERSION = "v1.7.8-1-5m-runtime-capacity-20260627";
+const EXPECTED_VERSION = "v1.8.1-hyperscale-backpressure-20260627";
 const DEFAULT_TIMEOUT_MS = 15000;
 
 function readEnv(name, fallback = "") {
@@ -146,7 +146,7 @@ async function main() {
   }
 
   console.log("");
-  console.log("LIVE 1.5M CHECK OK");
+  console.log("LIVE HYPERSCALE CHECK OK");
 }
 
 main().catch((error) => {
