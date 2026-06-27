@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 
 const root = path.resolve(__dirname, "..");
-const expectedVersion = "v1.7.8-1-5m-runtime-capacity-20260627";
+const expectedVersion = "v1.7.9-3m-sharded-scanner-20260627";
 
 function read(relativePath) {
   return fs.readFileSync(path.join(root, relativePath), "utf8");
@@ -41,9 +41,13 @@ function main() {
     "scripts/verify-live-1_5m.js",
     "scripts/verify-staging-deploy.js",
     "scripts/verify-env-1_5m.js",
-    "OPS_READINESS_1_5M_2026-06-27.md",
-    "SCANNER_WORKER_UPLOAD_GUIDE_1_5M_2026-06-27.md",
-    "RENDER_SCANNER_WORKER_ENV_NOW_NO_SECRETS.env"
+    "RUN_3M_SCALING_SQL_2026-06-27.sql",
+    "VERIFY_3M_SCALING_SQL_2026-06-27.sql",
+    "READ_ME_FIRST_BACKGROUND_WORKER.md",
+    "render.yaml",
+    "UPLOAD_TO_RENDER_BACKGROUND_WORKER_ONLY.txt",
+    "RENDER_SCANNER_WORKER_ENV_NOW_NO_SECRETS.env",
+    "env.scanner.3m.template"
   ]) {
     if (!exists(file)) fail(errors, `Missing ${file}`);
   }
@@ -56,10 +60,17 @@ function main() {
   assertIncludes(errors, "server.js", 'app.get("/ops/live"', "/ops/live endpoint");
   assertIncludes(errors, "server.js", "buildProcessMetrics", "process metrics helper");
   assertIncludes(errors, "server.js", "buildCapacityReadiness", "capacity helper");
+  assertIncludes(errors, "server.js", "claim_pending_payment_orders_sharded", "sharded scanner claim rpc");
+  assertIncludes(errors, "server.js", "PAYMENT_SCAN_CONCURRENCY", "scanner concurrency env");
+  assertIncludes(errors, "server.js", "PAYMENT_SCANNER_SHARD_COUNT", "scanner shard env");
   assertIncludes(errors, "server.js", "shutdownGracefully", "graceful shutdown");
-  assertIncludes(errors, "scripts/start-scanner.js", "Missing required Render env", "scanner env fail-fast");
+  assertIncludes(errors, "scripts/start-scanner.js", "Shard", "scanner shard startup log");
   assertIncludes(errors, "scripts/verify-live-1_5m.js", expectedVersion, "verify-live expected version");
   assertIncludes(errors, "package.json", "\"verify:package\"", "package verify script");
+  assertIncludes(errors, "render.yaml", "type: worker", "Render Background Worker type");
+  assertIncludes(errors, "render.yaml", "startCommand: npm run start:scanner", "Render Background Worker start command");
+  assertIncludes(errors, "render.yaml", "PAYMENT_SCANNER_SHARD_INDEX", "scanner shard index env marker");
+  assertIncludes(errors, "RUN_3M_SCALING_SQL_2026-06-27.sql", "claim_pending_payment_orders_sharded", "3M sharded SQL function");
 
   const textFiles = walk(root)
     .filter((file) => /\.(js|json|env|txt|md|yaml|yml|sql)$/i.test(file))
@@ -69,6 +80,7 @@ function main() {
     { regex: /v1\.7\.5-1-5m-worker-failfast-20260627/, label: "old backend version" },
     { regex: /v1\.7\.6-1-5m-readiness-doctor-20260627/, label: "old backend version" },
     { regex: /v1\.7\.7-1-5m-ops-observability-20260627/, label: "old backend version" },
+    { regex: /v1\.7\.8-1-5m-runtime-capacity-20260627/, label: "old backend version" },
     { regex: /UPLOAD_READY_SCANNER_WORKER_ONLY_1_5M_2026-06-27\.zip/, label: "old non-safe scanner zip name" },
     { regex: /UPLOAD_READY_1_5M_BACKEND_STAGING_2026-06-26\.zip/, label: "old non-safe backend zip name" },
     { regex: /ACTIVATION_FEE_TON=0(?:\r?\n|$)/, label: "old activation fee value" },

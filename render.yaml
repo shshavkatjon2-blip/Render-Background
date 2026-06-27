@@ -1,29 +1,6 @@
 services:
-  - type: web
-    name: vidipay-api-1-5m-staging
-    runtime: node
-    plan: standard
-    buildCommand: npm ci --omit=dev
-    startCommand: npm start
-    healthCheckPath: /healthz
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: PAYMENT_SCANNER_ENABLED
-        value: false
-      - key: RATE_LIMIT_BACKEND
-        value: redis
-      - key: REDIS_URL
-        sync: false
-      - key: SETTINGS_CACHE_TTL_MS
-        value: 1500
-      - key: TON_AUTO_PAYOUT_ENABLED
-        value: false
-      - key: TON_SIGNER_ENABLED
-        value: false
-
   - type: worker
-    name: vidipay-payment-scanner-1-5m-staging
+    name: vidipay-payment-scanner-3m-0
     runtime: node
     plan: standard
     buildCommand: npm ci --omit=dev
@@ -36,12 +13,129 @@ services:
       - key: PAYMENT_SCANNER_ENABLED
         value: true
       - key: PAYMENT_SCANNER_WORKER_ID
-        value: scanner-render-1
+        value: scanner-3m-0
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 4
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 0
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 10000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 100
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 8
       - key: RATE_LIMIT_BACKEND
         value: memory
-      - key: SETTINGS_CACHE_TTL_MS
-        value: 1500
-      - key: TON_AUTO_PAYOUT_ENABLED
-        value: false
-      - key: TON_SIGNER_ENABLED
-        value: false
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-3m-1
+    runtime: node
+    plan: standard
+    buildCommand: npm ci --omit=dev
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-3m-1
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 4
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 1
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 10000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 100
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 8
+      - key: RATE_LIMIT_BACKEND
+        value: memory
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-3m-2
+    runtime: node
+    plan: standard
+    buildCommand: npm ci --omit=dev
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-3m-2
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 4
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 2
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 10000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 100
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 8
+      - key: RATE_LIMIT_BACKEND
+        value: memory
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-3m-3
+    runtime: node
+    plan: standard
+    buildCommand: npm ci --omit=dev
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-3m-3
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 4
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 3
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 10000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 100
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 8
+      - key: RATE_LIMIT_BACKEND
+        value: memory
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false

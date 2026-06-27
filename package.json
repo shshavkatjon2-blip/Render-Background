@@ -1,33 +1,61 @@
-{
-  "name": "vidipay-backend",
-  "version": "1.0.0",
-  "description": "VidiPay Backend",
-  "main": "server.js",
-  "engines": {
-    "node": ">=18"
-  },
-  "scripts": {
-    "start": "node server.js",
-    "start:scanner": "node scripts/start-scanner.js",
-    "generate:ton-wallets": "node scripts/generate-ton-wallet-pool.js",
-    "generate:ton-wallets:large": "node scripts/generate-ton-wallet-pool-large.js",
-    "verify:env": "node scripts/verify-env-1_5m.js",
-    "verify:env:api": "node scripts/verify-env-1_5m.js api",
-    "verify:env:scanner": "node scripts/verify-env-1_5m.js scanner",
-    "verify:live": "node scripts/verify-live-1_5m.js",
-    "verify:package": "node scripts/verify-package-1_5m.js",
-    "verify:staging": "node scripts/verify-staging-deploy.js",
-    "wallets:verify": "node scripts/verify-ton-wallet-pool.js"
-  },
-  "dependencies": {
-    "@orbs-network/ton-access": "^2.3.3",
-    "@supabase/supabase-js": "^2.50.0",
-    "@ton/crypto": "^3.3.0",
-    "@ton/ton": "^16.3.0",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^4.21.0",
-    "helmet": "^8.0.0",
-    "redis": "^4.7.0"
-  }
-}
+NODE_ENV=production
+WORKER_MODE=scanner
+PAYMENT_SCANNER_ENABLED=true
+PAYMENT_SCANNER_WORKER_ID=scanner-3m-0
+PAYMENT_SCANNER_SHARD_COUNT=4
+PAYMENT_SCANNER_SHARD_INDEX=0
+
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
+TONAPI_KEY=
+TONAPI_BASE_URL=https://tonapi.io
+
+PUBLIC_BACKEND_URL=https://vidipay-backend.onrender.com
+PUBLIC_APP_URL=https://shshavkatjon2-blip.github.io/vidipay-fronted
+GAME_URL=https://shshavkatjon2-blip.github.io/vidipay-fronted/index.html
+ALLOWED_ORIGINS=https://shshavkatjon2-blip.github.io,https://vidipay-backend.onrender.com,https://web.telegram.org,https://telegram.org
+
+ACTIVATION_DEPOSIT_TON=6.99
+ACTIVATION_FEE_TON=0.83
+ACTIVATION_REFUND_TON=6.99
+ACTIVATION_PAYOUT_TON=6.16
+TON_PAYMENT_AMOUNT=6.99
+PAYMENT_MIN_RECEIVED_TON=6.90
+PAYMENT_MAX_RECEIVED_TON=7.05
+TON_PAYMENT_MIN_RECEIVED=6.90
+TON_PAYMENT_MAX_RECEIVED=7.05
+WALLET_UNLOCK_REQUIRED_USD=20
+
+PAYMENT_ORDER_TTL_MINUTES=5
+PAYMENT_LATE_GRACE_MINUTES=30
+PAYMENT_WALLET_COOLDOWN_MINUTES=30
+PAYMENT_SCAN_INTERVAL_MS=10000
+PAYMENT_SCAN_BATCH_SIZE=100
+PAYMENT_SCAN_CONCURRENCY=8
+
+RATE_LIMIT_BACKEND=memory
+REDIS_URL=
+SETTINGS_CACHE_TTL_MS=1000
+REQUEST_SLOW_MS=1500
+SERVER_KEEP_ALIVE_TIMEOUT_MS=65000
+SERVER_HEADERS_TIMEOUT_MS=70000
+SERVER_REQUEST_TIMEOUT_MS=120000
+SHUTDOWN_GRACE_MS=25000
+CAPACITY_INITIAL_USERS=300000
+CAPACITY_TARGET_USERS=3000000
+CAPACITY_3M_MIN_SCANNER_WORKERS=4
+
+TON_AUTO_PAYOUT_ENABLED=false
+TON_SIGNER_ENABLED=false
+TON_SIGNER_NETWORK=mainnet
+TON_RPC_ENDPOINT=
+TON_RPC_KEY=
+TON_RPC_API_KEY=
+TON_SIGNER_KEYS_DIR=
+TON_PAYOUT_GAS_RESERVE=0.10
+TON_PAYOUT_BODY=VidiPay activation payout
+
+ADMIN_TOKEN=
+BOT_TOKEN=
+TELEGRAM_WEBHOOK_SECRET=
+FIAT_WEBHOOK_SECRET=

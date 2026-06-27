@@ -1,0 +1,9 @@
+UPLOAD THIS ZIP TO RENDER BACKGROUND WORKERS ONLY
+
+Type: Background Worker
+Build command: npm ci --omit=dev
+Start command: npm run start:scanner
+Expected version: v1.7.9-3m-sharded-scanner-20260627
+
+Use 4 worker services with shard indexes 0, 1, 2, 3.
+Do NOT upload this zip to the Web Service.
