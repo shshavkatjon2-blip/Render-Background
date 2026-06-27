@@ -32,7 +32,7 @@ if (missingEnvs.length > 0) {
 
 const app = express();
 
-const BACKEND_VERSION = "v1.7.5-1-5m-worker-failfast-20260627";
+const BACKEND_VERSION = "v1.7.6-1-5m-readiness-doctor-20260627";
 const WEBAPP_VERSION = "wallet-toncoin-v21-watch-balance-lock-20260625";
 const CANONICAL_PUBLIC_BACKEND_URL = "https://vidipay-backend.onrender.com";
 const CANONICAL_PUBLIC_APP_URL = "https://shshavkatjon2-blip.github.io/vidipay-fronted";
@@ -1800,18 +1800,52 @@ function buildPaymentScannerStatus(heartbeatSnapshot = { available: false, error
   };
 }
 
+function getScannerHealthMessage(status) {
+  if (status === "ok") return "Scanner worker heartbeat is fresh. TON deposit scanning can run.";
+  if (status === "stale") return "Public API is live, but the separate scanner Background Worker is not heartbeating.";
+  return "Scanner heartbeat table is unavailable or cannot be read.";
+}
+
+function getScannerRecommendedChecks(status) {
+  if (status === "ok") return [];
+  if (status === "unavailable") {
+    return [
+      "Run COPY_THIS_SCANNER_HEARTBEAT_SQL_1_5M.sql in the same Supabase project.",
+      "Confirm SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY point to the same project as the API.",
+      "Redeploy the API after SQL is applied."
+    ];
+  }
+  return [
+    "Confirm Render service type is Background Worker, not Web Service.",
+    "Confirm worker start command is npm run start:scanner.",
+    "Confirm worker env has WORKER_MODE=scanner and PAYMENT_SCANNER_ENABLED=true.",
+    "Confirm worker env has real SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, TONAPI_KEY, and TONAPI_BASE_URL.",
+    "Confirm worker uses the same Supabase project as the public API.",
+    "Open Render worker logs; v1.7.6 fails fast when required env is missing."
+  ];
+}
+
 function buildPublicPaymentScannerHealth(heartbeatSnapshot = { available: false, error: null, rows: [] }) {
   const scannerStatus = buildPaymentScannerStatus(heartbeatSnapshot);
   const latestScanner = scannerStatus.latest_scanner_heartbeat || null;
   const heartbeatAvailable = Boolean(scannerStatus.heartbeat_available);
   const scannerAlive = scannerStatus.scanner_worker_alive === true;
+  const status = heartbeatAvailable ? (scannerAlive ? "ok" : "stale") : "unavailable";
 
   return {
-    status: heartbeatAvailable ? (scannerAlive ? "ok" : "stale") : "unavailable",
+    status,
     version: BACKEND_VERSION,
     network: PAYMENT_NETWORK,
     token: PAYMENT_TOKEN,
     worker_mode: SCANNER_WORKER_MODE ? "scanner" : "api",
+    action_required: status !== "ok",
+    message: getScannerHealthMessage(status),
+    recommended_checks: getScannerRecommendedChecks(status),
+    expected_worker: {
+      service_type: "Background Worker",
+      start_command: "npm run start:scanner",
+      worker_mode: "scanner"
+    },
     heartbeat_available: heartbeatAvailable,
     heartbeat_stale: scannerStatus.heartbeat_stale,
     heartbeat_stale_after_ms: scannerStatus.heartbeat_stale_after_ms,
@@ -2335,6 +2369,14 @@ app.get("/scanner/healthz", async (req, res) => {
       network: PAYMENT_NETWORK,
       token: PAYMENT_TOKEN,
       worker_mode: SCANNER_WORKER_MODE ? "scanner" : "api",
+      action_required: true,
+      message: getScannerHealthMessage("unavailable"),
+      recommended_checks: getScannerRecommendedChecks("unavailable"),
+      expected_worker: {
+        service_type: "Background Worker",
+        start_command: "npm run start:scanner",
+        worker_mode: "scanner"
+      },
       heartbeat_available: false,
       heartbeat_stale: null,
       heartbeat_stale_after_ms: Math.max(60000, Number(PAYMENT_SCAN_INTERVAL_MS || 15000) * 4),
@@ -2346,6 +2388,58 @@ app.get("/scanner/healthz", async (req, res) => {
       confirmed_total: 0,
       scan_interval_ms: Number(PAYMENT_SCAN_INTERVAL_MS || 0),
       scan_batch_size: Number(PAYMENT_SCAN_BATCH_SIZE || 0)
+    });
+  }
+});
+
+app.get("/ops/readiness", async (req, res) => {
+  try {
+    const [settings, scannerHeartbeats] = await Promise.all([
+      getSettings(),
+      readPaymentScannerHeartbeats()
+    ]);
+    const scanner = buildPublicPaymentScannerHealth(scannerHeartbeats);
+    const paymentRangeOk =
+      Number(PAYMENT_MIN_RECEIVED_TON) <= Number(PAYMENT_AMOUNT_TON) &&
+      Number(PAYMENT_AMOUNT_TON) <= Number(PAYMENT_MAX_RECEIVED_TON);
+    const warnings = [];
+
+    if (scanner.status !== "ok") warnings.push(scanner.message);
+    if (!paymentRangeOk) warnings.push("TON payment min/amount/max range is invalid.");
+    if (!TON_AUTO_PAYOUT_ENABLED) warnings.push("TON auto payout is disabled; deposit scan can work, but automatic refund payout will not run.");
+    if (!SCANNER_WORKER_MODE && RATE_LIMIT_BACKEND !== "redis") warnings.push("Public API should use Redis rate limit backend before heavy traffic.");
+
+    res.json({
+      status: warnings.length ? "action_required" : "ready",
+      version: BACKEND_VERSION,
+      worker_mode: SCANNER_WORKER_MODE ? "scanner" : "api",
+      webapp_version: WEBAPP_VERSION,
+      checks: {
+        settings_loaded: Boolean(settings),
+        payment_range_ok: paymentRangeOk,
+        scanner_worker_ok: scanner.status === "ok",
+        api_scanner_disabled: !SCANNER_WORKER_MODE ? PAYMENT_SCANNER_ENABLED === false : true,
+        redis_required_for_api: !SCANNER_WORKER_MODE,
+        redis_configured_for_api: !SCANNER_WORKER_MODE ? RATE_LIMIT_BACKEND === "redis" && Boolean(REDIS_URL) : null
+      },
+      payment: {
+        network: PAYMENT_NETWORK,
+        token: PAYMENT_TOKEN,
+        amount: Number(PAYMENT_AMOUNT_TON),
+        min_received: Number(PAYMENT_MIN_RECEIVED_TON),
+        max_received: Number(PAYMENT_MAX_RECEIVED_TON),
+        activation_fee: Number(ACTIVATION_FEE_TON),
+        activation_payout: Number(ACTIVATION_PAYOUT_TON),
+        auto_payout_enabled: TON_AUTO_PAYOUT_ENABLED
+      },
+      scanner,
+      warnings
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
     });
   }
 });

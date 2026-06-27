@@ -97,6 +97,11 @@ async function main() {
       bodyOk: body => body && ["ok", "stale", "unavailable"].includes(body.status)
     },
     {
+      name: "ops readiness",
+      path: "/ops/readiness",
+      bodyOk: body => body && ["ready", "action_required", "not_ready"].includes(body.status)
+    },
+    {
       name: "settings",
       path: "/settings",
       bodyOk: body => body

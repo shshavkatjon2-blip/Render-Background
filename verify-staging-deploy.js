@@ -1,5 +1,5 @@
 const DEFAULT_BASE_URL = "https://vidipay-backend.onrender.com";
-const EXPECTED_VERSION = "v1.7.5-1-5m-worker-failfast-20260627";
+const EXPECTED_VERSION = "v1.7.6-1-5m-readiness-doctor-20260627";
 const DEFAULT_TIMEOUT_MS = 15000;
 
 function readEnv(name, fallback = "") {
@@ -83,6 +83,7 @@ async function main() {
     ["readyz", "/readyz"],
     ["settings", "/settings"],
     ["scanner", "/scanner/healthz"],
+    ["readiness", "/ops/readiness"],
     ["root", "/"]
   ]) {
     results[name] = await getJson(baseUrl, path);
@@ -91,6 +92,7 @@ async function main() {
   const healthVersionOk = isExpectedVersion(results.healthz.body);
   const readyVersionOk = isExpectedVersion(results.readyz.body);
   const settingsVersionOk = isExpectedVersion(results.settings.body);
+  const readinessVersionOk = isExpectedVersion(results.readiness.body);
   const scanner = results.scanner.body;
   const scannerOk = scanner && scanner.status === "ok" && scanner.scanner_worker_alive === true;
 
@@ -98,6 +100,7 @@ async function main() {
   console.log(statusLine("readyz", results.readyz, readyVersionOk ? "version-ok" : "version-mismatch"));
   console.log(statusLine("settings", results.settings, settingsVersionOk ? "version-ok" : "version-mismatch"));
   console.log(statusLine("scanner", results.scanner, scannerAdvice(scanner)));
+  console.log(statusLine("readiness", results.readiness, readinessVersionOk ? `status=${results.readiness.body?.status || "unknown"}` : "version-mismatch"));
   console.log(statusLine("root", results.root));
 
   console.log("");
@@ -115,6 +118,7 @@ async function main() {
   if (!healthVersionOk) failures.push("healthz version is not the expected package version");
   if (!readyVersionOk) failures.push("readyz version is not the expected package version");
   if (!settingsVersionOk) failures.push("settings version is not the expected package version");
+  if (!readinessVersionOk) failures.push("readiness version is not the expected package version");
   if (!scannerOk) failures.push(scannerAdvice(scanner));
 
   if (failures.length) {
