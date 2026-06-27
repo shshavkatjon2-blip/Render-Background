@@ -102,6 +102,21 @@ async function main() {
       bodyOk: body => body && ["ready", "action_required", "not_ready"].includes(body.status)
     },
     {
+      name: "ops metrics",
+      path: "/ops/metrics",
+      bodyOk: body => body && typeof body.uptime_seconds === "number"
+    },
+    {
+      name: "ops deploy",
+      path: "/ops/deploy",
+      bodyOk: body => body && ["ready", "action_required", "not_ready"].includes(body.status)
+    },
+    {
+      name: "ops live",
+      path: "/ops/live",
+      bodyOk: body => body && ["ready", "action_required", "not_ready"].includes(body.status)
+    },
+    {
       name: "settings",
       path: "/settings",
       bodyOk: body => body

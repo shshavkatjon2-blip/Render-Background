@@ -32,7 +32,24 @@ if (missingEnvs.length > 0) {
 
 const app = express();
 
-const BACKEND_VERSION = "v1.7.6-1-5m-readiness-doctor-20260627";
+const BACKEND_VERSION = "v1.7.7-1-5m-ops-observability-20260627";
+const PROCESS_STARTED_AT = new Date();
+const REQUEST_SLOW_MS = Math.max(250, Number(process.env.REQUEST_SLOW_MS || 1500));
+const opsCounters = {
+  requests_total: 0,
+  responses_total: 0,
+  errors_total: 0,
+  slow_requests_total: 0,
+  max_duration_ms: 0,
+  last_request_at: null,
+  last_slow_request_at: null,
+  by_status_class: {
+    "2xx": 0,
+    "3xx": 0,
+    "4xx": 0,
+    "5xx": 0
+  }
+};
 const WEBAPP_VERSION = "wallet-toncoin-v21-watch-balance-lock-20260625";
 const CANONICAL_PUBLIC_BACKEND_URL = "https://vidipay-backend.onrender.com";
 const CANONICAL_PUBLIC_APP_URL = "https://shshavkatjon2-blip.github.io/vidipay-fronted";
@@ -190,10 +207,36 @@ app.disable("x-powered-by");
 
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false })); // <-- [YANGI]: Serverni tashqi skanerlardan himoyalash
 app.use((req, res, next) => {
+  const requestId = String(req.headers["x-request-id"] || crypto.randomUUID()).slice(0, 80);
+  req.requestId = requestId;
+  res.setHeader("X-Request-Id", requestId);
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "no-referrer");
   res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   res.setHeader("Cache-Control", "no-store");
+  next();
+});
+
+app.use((req, res, next) => {
+  const started = process.hrtime.bigint();
+  opsCounters.requests_total += 1;
+  opsCounters.last_request_at = new Date().toISOString();
+
+  res.on("finish", () => {
+    const durationMs = Number(process.hrtime.bigint() - started) / 1e6;
+    const statusClass = `${Math.floor(res.statusCode / 100)}xx`;
+    opsCounters.responses_total += 1;
+    if (opsCounters.by_status_class[statusClass] !== undefined) {
+      opsCounters.by_status_class[statusClass] += 1;
+    }
+    if (res.statusCode >= 500) opsCounters.errors_total += 1;
+    if (durationMs > REQUEST_SLOW_MS) {
+      opsCounters.slow_requests_total += 1;
+      opsCounters.last_slow_request_at = new Date().toISOString();
+    }
+    opsCounters.max_duration_ms = Math.max(opsCounters.max_duration_ms, Math.round(durationMs));
+  });
+
   next();
 });
 
@@ -204,7 +247,7 @@ const corsOptions = {
     return callback(null, true);
   },
   methods: ["GET", "POST", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Admin-Token"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Admin-Token", "X-Request-Id"],
   optionsSuccessStatus: 204
 };
 
@@ -1821,7 +1864,7 @@ function getScannerRecommendedChecks(status) {
     "Confirm worker env has WORKER_MODE=scanner and PAYMENT_SCANNER_ENABLED=true.",
     "Confirm worker env has real SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, TONAPI_KEY, and TONAPI_BASE_URL.",
     "Confirm worker uses the same Supabase project as the public API.",
-    "Open Render worker logs; v1.7.6 fails fast when required env is missing."
+    "Open Render worker logs; v1.7.7 fails fast when required env is missing."
   ];
 }
 
@@ -1857,6 +1900,93 @@ function buildPublicPaymentScannerHealth(heartbeatSnapshot = { available: false,
     confirmed_total: Number(latestScanner?.confirmed_total || 0),
     scan_interval_ms: Number(PAYMENT_SCAN_INTERVAL_MS || 0),
     scan_batch_size: Number(PAYMENT_SCAN_BATCH_SIZE || 0)
+  };
+}
+
+function buildProcessMetrics() {
+  const memory = process.memoryUsage();
+  return {
+    version: BACKEND_VERSION,
+    worker_mode: SCANNER_WORKER_MODE ? "scanner" : "api",
+    booted_at: PROCESS_STARTED_AT.toISOString(),
+    uptime_seconds: Math.floor(process.uptime()),
+    pid: process.pid,
+    node_version: process.version,
+    memory_mb: {
+      rss: Math.round(memory.rss / 1024 / 1024),
+      heap_used: Math.round(memory.heapUsed / 1024 / 1024),
+      heap_total: Math.round(memory.heapTotal / 1024 / 1024),
+      external: Math.round(memory.external / 1024 / 1024)
+    },
+    requests: {
+      ...opsCounters,
+      max_duration_ms: Math.round(opsCounters.max_duration_ms)
+    },
+    rate_limit: {
+      backend: RATE_LIMIT_BACKEND,
+      redis_configured: Boolean(REDIS_URL),
+      memory_bucket_count: rateBuckets.size
+    },
+    settings_cache: {
+      enabled: SETTINGS_CACHE_TTL_MS > 0,
+      ttl_ms: SETTINGS_CACHE_TTL_MS,
+      warm: Boolean(settingsCache.value),
+      expires_at: settingsCache.expiresAt ? new Date(settingsCache.expiresAt).toISOString() : null
+    }
+  };
+}
+
+function buildEnvPresenceSummary() {
+  const names = [
+    "SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "BOT_TOKEN",
+    "TELEGRAM_WEBHOOK_SECRET",
+    "ADMIN_TOKEN",
+    "TONAPI_KEY",
+    "TONAPI_BASE_URL",
+    "PUBLIC_BACKEND_URL",
+    "PUBLIC_APP_URL",
+    "GAME_URL",
+    "ALLOWED_ORIGINS",
+    "REDIS_URL"
+  ];
+  return Object.fromEntries(names.map((name) => [name, hasRealEnvValue(name)]));
+}
+
+function buildDeploymentShape(scanner) {
+  const apiMode = !SCANNER_WORKER_MODE;
+  return {
+    version: BACKEND_VERSION,
+    service_role: SCANNER_WORKER_MODE ? "scanner_worker" : "public_api",
+    expected_services: {
+      public_api: {
+        service_type: "Web Service",
+        start_command: "npm start",
+        payment_scanner_enabled: false,
+        redis_recommended: true
+      },
+      scanner_worker: {
+        service_type: "Background Worker",
+        start_command: "npm run start:scanner",
+        payment_scanner_enabled: true,
+        redis_required: false
+      }
+    },
+    current_service: {
+      worker_mode: SCANNER_WORKER_MODE ? "scanner" : "api",
+      payment_scanner_enabled: PAYMENT_SCANNER_ENABLED,
+      rate_limit_backend: RATE_LIMIT_BACKEND,
+      redis_configured: Boolean(REDIS_URL)
+    },
+    ready_for_real_deposit_test: Boolean(scanner?.status === "ok" && scanner?.scanner_worker_alive === true),
+    required_before_100k_plus: {
+      scanner_worker_ok: Boolean(scanner?.status === "ok"),
+      api_redis_ok: apiMode ? RATE_LIMIT_BACKEND === "redis" && Boolean(REDIS_URL) : true,
+      payment_range_ok:
+        Number(PAYMENT_MIN_RECEIVED_TON) <= Number(PAYMENT_AMOUNT_TON) &&
+        Number(PAYMENT_AMOUNT_TON) <= Number(PAYMENT_MAX_RECEIVED_TON)
+    }
   };
 }
 
@@ -2338,6 +2468,7 @@ app.get("/healthz", (req, res) => {
     status: "ok",
     version: BACKEND_VERSION,
     worker_mode: SCANNER_WORKER_MODE ? "scanner" : "api",
+    booted_at: PROCESS_STARTED_AT.toISOString(),
     uptime_seconds: Math.floor(process.uptime())
   });
 });
@@ -2348,7 +2479,9 @@ app.get("/readyz", async (req, res) => {
     res.json({
       status: "ready",
       version: BACKEND_VERSION,
-      worker_mode: SCANNER_WORKER_MODE ? "scanner" : "api"
+      worker_mode: SCANNER_WORKER_MODE ? "scanner" : "api",
+      booted_at: PROCESS_STARTED_AT.toISOString(),
+      uptime_seconds: Math.floor(process.uptime())
     });
   } catch (err) {
     res.status(503).json({
@@ -2433,6 +2566,63 @@ app.get("/ops/readiness", async (req, res) => {
         auto_payout_enabled: TON_AUTO_PAYOUT_ENABLED
       },
       scanner,
+      warnings
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/metrics", (req, res) => {
+  res.json(buildProcessMetrics());
+});
+
+app.get("/ops/deploy", async (req, res) => {
+  try {
+    const scannerHeartbeats = await readPaymentScannerHeartbeats();
+    const scanner = buildPublicPaymentScannerHealth(scannerHeartbeats);
+    res.json({
+      status: scanner.status === "ok" ? "ready" : "action_required",
+      version: BACKEND_VERSION,
+      env_present: buildEnvPresenceSummary(),
+      deployment: buildDeploymentShape(scanner),
+      scanner
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/live", async (req, res) => {
+  try {
+    const [settings, scannerHeartbeats] = await Promise.all([
+      getSettings(),
+      readPaymentScannerHeartbeats()
+    ]);
+    const scanner = buildPublicPaymentScannerHealth(scannerHeartbeats);
+    const metrics = buildProcessMetrics();
+    const warnings = [];
+    if (scanner.status !== "ok") warnings.push(scanner.message);
+    if (!SCANNER_WORKER_MODE && !(RATE_LIMIT_BACKEND === "redis" && REDIS_URL)) warnings.push("API Redis is not configured for 100K+ traffic.");
+    if (!TON_AUTO_PAYOUT_ENABLED) warnings.push("TON auto payout is disabled.");
+
+    res.json({
+      status: warnings.length ? "action_required" : "ready",
+      version: BACKEND_VERSION,
+      worker_mode: SCANNER_WORKER_MODE ? "scanner" : "api",
+      webapp_version: WEBAPP_VERSION,
+      settings_loaded: Boolean(settings),
+      scanner,
+      metrics,
+      deployment: buildDeploymentShape(scanner),
       warnings
     });
   } catch (err) {

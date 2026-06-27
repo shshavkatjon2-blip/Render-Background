@@ -1,53 +1,27 @@
-# VidiPay 1.5M scanner worker env.
-# Use this for the payment scanner worker service.
+# Live check result - 2026-06-27
 
-NODE_ENV=production
-WORKER_MODE=scanner
+Latest expected package version:
 
-SUPABASE_URL=
-SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
+```text
+v1.7.7-1-5m-ops-observability-20260627
+```
 
-ADMIN_TOKEN=
-BOT_TOKEN=
-TELEGRAM_WEBHOOK_SECRET=
+The public API can be live while the scanner worker is still stale.
 
-PUBLIC_BACKEND_URL=https://vidipay-backend.onrender.com
-PUBLIC_APP_URL=https://shshavkatjon2-blip.github.io/vidipay-fronted
-GAME_URL=https://shshavkatjon2-blip.github.io/vidipay-fronted/index.html
-ALLOWED_ORIGINS=https://shshavkatjon2-blip.github.io,https://vidipay-backend.onrender.com,https://web.telegram.org,https://telegram.org
+Check after deploying both API and scanner worker:
 
-TONAPI_KEY=
-TONAPI_BASE_URL=https://tonapi.io
-TON_USDT_JETTON_MASTER=
+```powershell
+curl.exe -s https://vidipay-backend.onrender.com/healthz
+curl.exe -s https://vidipay-backend.onrender.com/scanner/healthz
+curl.exe -s https://vidipay-backend.onrender.com/ops/live
+```
 
-TON_RPC_ENDPOINT=
-TON_RPC_KEY=
-TON_RPC_API_KEY=
-TON_SIGNER_KEYS_DIR=
-TON_AUTO_PAYOUT_ENABLED=false
-TON_SIGNER_ENABLED=false
+Expected:
 
-ACTIVATION_DEPOSIT_TON=6.99
-ACTIVATION_FEE_TON=0.83
-ACTIVATION_REFUND_TON=6.99
-TON_PAYMENT_AMOUNT=6.99
-PAYMENT_MIN_RECEIVED_TON=6.90
-PAYMENT_MAX_RECEIVED_TON=7.05
-TON_PAYMENT_MIN_RECEIVED=6.90
-TON_PAYMENT_MAX_RECEIVED=7.05
-WALLET_UNLOCK_REQUIRED_USD=20
+```text
+/healthz version=v1.7.7-1-5m-ops-observability-20260627
+/scanner/healthz status=ok
+/ops/live status=ready
+```
 
-PAYMENT_ORDER_TTL_MINUTES=5
-PAYMENT_LATE_GRACE_MINUTES=30
-PAYMENT_WALLET_COOLDOWN_MINUTES=30
-PAYMENT_SCAN_INTERVAL_MS=15000
-PAYMENT_SCAN_BATCH_SIZE=50
-PAYMENT_SCANNER_ENABLED=true
-PAYMENT_SCANNER_WORKER_ID=scanner-render-1
-
-RATE_LIMIT_BACKEND=redis
-REDIS_URL=
-SETTINGS_CACHE_TTL_MS=1500
-
-FIAT_WEBHOOK_SECRET=
+If scanner is stale, fix the separate Render Background Worker before real TON deposit testing.

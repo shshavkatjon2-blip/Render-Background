@@ -1,0 +1,47 @@
+services:
+  - type: web
+    name: vidipay-api-1-5m-staging
+    runtime: node
+    plan: standard
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PAYMENT_SCANNER_ENABLED
+        value: false
+      - key: RATE_LIMIT_BACKEND
+        value: redis
+      - key: REDIS_URL
+        sync: false
+      - key: SETTINGS_CACHE_TTL_MS
+        value: 1500
+      - key: TON_AUTO_PAYOUT_ENABLED
+        value: false
+      - key: TON_SIGNER_ENABLED
+        value: false
+
+  - type: worker
+    name: vidipay-payment-scanner-1-5m-staging
+    runtime: node
+    plan: standard
+    buildCommand: npm ci --omit=dev
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-render-1
+      - key: RATE_LIMIT_BACKEND
+        value: memory
+      - key: SETTINGS_CACHE_TTL_MS
+        value: 1500
+      - key: TON_AUTO_PAYOUT_ENABLED
+        value: false
+      - key: TON_SIGNER_ENABLED
+        value: false

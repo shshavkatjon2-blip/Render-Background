@@ -1,41 +1,33 @@
-# Ops readiness - 1.5M
-
-New endpoint:
-
-```text
-GET /ops/readiness
-```
-
-It is safe for public diagnostics. It does not return secrets, user data, wallet addresses, transaction hashes, or raw database rows.
-
-Expected after API and scanner worker deploy:
-
-```text
-status=ready
-scanner.status=ok
-scanner.scanner_worker_alive=true
-checks.payment_range_ok=true
-```
-
-If the public API is live but scanner worker is not running:
-
-```text
-status=action_required
-scanner.status=stale
-```
-
-Most common fixes for `stale`:
-
-1. Render scanner service must be `Background Worker`.
-2. Start command must be `npm run start:scanner`.
-3. Worker must use the same `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` as the API.
-4. Worker must have a real `TONAPI_KEY`.
-5. `COPY_THIS_SCANNER_HEARTBEAT_SQL_1_5M.sql` must be run in the same Supabase project.
-
-Quick checks:
-
-```powershell
-curl.exe -s https://vidipay-backend.onrender.com/healthz
-curl.exe -s https://vidipay-backend.onrender.com/scanner/healthz
-curl.exe -s https://vidipay-backend.onrender.com/ops/readiness
-```
+{
+  "name": "vidipay-backend",
+  "version": "1.0.0",
+  "description": "VidiPay Backend",
+  "main": "server.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "start:scanner": "node scripts/start-scanner.js",
+    "generate:ton-wallets": "node scripts/generate-ton-wallet-pool.js",
+    "generate:ton-wallets:large": "node scripts/generate-ton-wallet-pool-large.js",
+    "verify:env": "node scripts/verify-env-1_5m.js",
+    "verify:env:api": "node scripts/verify-env-1_5m.js api",
+    "verify:env:scanner": "node scripts/verify-env-1_5m.js scanner",
+    "verify:live": "node scripts/verify-live-1_5m.js",
+    "verify:package": "node scripts/verify-package-1_5m.js",
+    "verify:staging": "node scripts/verify-staging-deploy.js",
+    "wallets:verify": "node scripts/verify-ton-wallet-pool.js"
+  },
+  "dependencies": {
+    "@orbs-network/ton-access": "^2.3.3",
+    "@supabase/supabase-js": "^2.50.0",
+    "@ton/crypto": "^3.3.0",
+    "@ton/ton": "^16.3.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "helmet": "^8.0.0",
+    "redis": "^4.7.0"
+  }
+}

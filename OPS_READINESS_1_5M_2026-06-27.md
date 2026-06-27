@@ -1,52 +1,44 @@
-# Live Check Result - 2026-06-27
+# Ops readiness - 1.5M
 
-Checked live URL:
+New endpoint:
 
 ```text
-https://vidipay-backend.onrender.com
+GET /ops/readiness
 ```
 
-## Passed
+It is safe for public diagnostics. It does not return secrets, user data, wallet addresses, transaction hashes, or raw database rows.
 
-- `/healthz` is OK.
-- `/readyz` is ready.
-- Backend version is `v1.7.5-1-5m-worker-failfast-20260627`.
-- Public API worker mode is `api`.
-- Public API scanner is disabled: `payment_scanner_enabled=false`.
-- `/payment/status/8188152343` returns a TON wallet address.
-- Wallet pool is loaded:
-  - total: `100054`
-  - active: `100054`
-  - assigned: `50`
-  - available: `100004`
-- Admin endpoints answer.
-
-## Not Passed Yet
-
-Scanner worker heartbeat:
+Expected after API and scanner worker deploy:
 
 ```text
-heartbeat_available=true
-scanner_worker_alive=false
-heartbeats=[]
+status=ready
+scanner.status=ok
+scanner.scanner_worker_alive=true
+checks.payment_range_ok=true
 ```
 
-Meaning:
+If the public API is live but scanner worker is not running:
 
 ```text
-API is deployed, but the separate scanner Background Worker is not running or is using wrong env/Supabase keys.
+status=action_required
+scanner.status=stale
 ```
 
-## Next Required Action
+Most common fixes for `stale`:
 
-Deploy the scanner as a separate Render Background Worker using:
+1. Render scanner service must be `Background Worker`.
+2. Start command must be `npm run start:scanner`.
+3. Worker must use the same `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` as the API.
+4. Worker must have a real `TONAPI_KEY`.
+5. `COPY_THIS_SCANNER_HEARTBEAT_SQL_1_5M.sql` must be run in the same Supabase project.
 
-```text
-outputs/UPLOAD_READY_SCANNER_WORKER_ONLY_1_5M_2026-06-27_SAFE_NO_SECRETS.zip
-```
+Quick checks:
 
-Start command:
-
-```text
-npm run start:scanner
+```powershell
+curl.exe -s https://vidipay-backend.onrender.com/healthz
+curl.exe -s https://vidipay-backend.onrender.com/scanner/healthz
+curl.exe -s https://vidipay-backend.onrender.com/ops/readiness
+curl.exe -s https://vidipay-backend.onrender.com/ops/metrics
+curl.exe -s https://vidipay-backend.onrender.com/ops/deploy
+curl.exe -s https://vidipay-backend.onrender.com/ops/live
 ```

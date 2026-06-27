@@ -1,0 +1,20 @@
+PUBLIC API BUILD:
+npm ci --omit=dev
+
+PUBLIC API START:
+npm start
+
+SCANNER WORKER BUILD:
+npm ci --omit=dev
+
+SCANNER WORKER START:
+npm run start:scanner
+
+PUBLIC API HEALTH CHECK:
+/healthz
+
+PUBLIC API ENV VERIFY:
+npm run verify:env:api
+
+SCANNER WORKER ENV VERIFY:
+npm run verify:env:scanner
