@@ -85,7 +85,7 @@ function main() {
 
   const rateLimitBackend = value("RATE_LIMIT_BACKEND").toLowerCase();
   if (mode === "api" && rateLimitBackend !== "redis") {
-    errors.push("RATE_LIMIT_BACKEND must be redis for 3M API mode");
+    errors.push("RATE_LIMIT_BACKEND must be redis for 1.5M API mode");
   }
   if (mode === "api" && !value("REDIS_URL")) {
     errors.push("Missing REDIS_URL");
@@ -94,7 +94,7 @@ function main() {
     warnings.push("Scanner worker is using memory rate limit fallback; this is OK for scanner-only worker");
   }
   if (mode === "scanner" && !value("REDIS_URL")) {
-    warnings.push("REDIS_URL is empty; scanner can still run, but API service should use Redis for 3M traffic");
+    warnings.push("REDIS_URL is empty; scanner can still run, but API service should use Redis for 1.5M traffic");
   }
 
   checkPositiveNumber(errors, "ACTIVATION_DEPOSIT_TON", { min: 0.000001, max: 1000000 });
@@ -122,16 +122,8 @@ function main() {
   if (mode === "scanner") {
     if (workerMode !== "scanner") errors.push("Scanner service must set WORKER_MODE=scanner");
     checkBoolean(errors, "PAYMENT_SCANNER_ENABLED", true);
-    checkPositiveNumber(errors, "PAYMENT_SCAN_INTERVAL_MS", { min: 3000, max: 300000 });
-    checkPositiveNumber(errors, "PAYMENT_SCAN_BATCH_SIZE", { min: 1, max: 500 });
-    checkPositiveNumber(errors, "PAYMENT_SCAN_CONCURRENCY", { min: 1, max: 32 });
-    checkPositiveNumber(errors, "PAYMENT_SCANNER_SHARD_COUNT", { min: 1, max: 64 });
-    checkPositiveNumber(errors, "PAYMENT_SCANNER_SHARD_INDEX", { min: 0, max: 63 });
-    const shardCount = parseNumber("PAYMENT_SCANNER_SHARD_COUNT", 1);
-    const shardIndex = parseNumber("PAYMENT_SCANNER_SHARD_INDEX", 0);
-    if (Number.isFinite(shardCount) && Number.isFinite(shardIndex) && shardIndex >= shardCount) {
-      errors.push("PAYMENT_SCANNER_SHARD_INDEX must be lower than PAYMENT_SCANNER_SHARD_COUNT");
-    }
+    checkPositiveNumber(errors, "PAYMENT_SCAN_INTERVAL_MS", { min: 5000, max: 300000 });
+    checkPositiveNumber(errors, "PAYMENT_SCAN_BATCH_SIZE", { min: 1, max: 250 });
   }
 
   const autoPayoutEnabled = value("TON_AUTO_PAYOUT_ENABLED").toLowerCase() === "true" ||
@@ -143,7 +135,7 @@ function main() {
     warnings.push("TON auto payout is not enabled; deposit scanning can work, but automatic refund payout will not run");
   }
 
-  console.log(`VidiPay 3M env check mode: ${mode}`);
+  console.log(`VidiPay 1.5M env check mode: ${mode}`);
   for (const warning of warnings) console.warn(`WARN ${warning}`);
 
   if (errors.length) {

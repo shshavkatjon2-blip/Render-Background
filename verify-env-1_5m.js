@@ -16,8 +16,6 @@ function hasRealValue(name) {
 }
 
 const missing = REQUIRED.filter((name) => !hasRealValue(name));
-const shardCount = Math.max(1, Number(process.env.PAYMENT_SCANNER_SHARD_COUNT || 1));
-const shardIndex = Number(process.env.PAYMENT_SCANNER_SHARD_INDEX || 0);
 
 if (missing.length) {
   console.error("[scanner] Cannot start VidiPay payment scanner.");
@@ -27,14 +25,7 @@ if (missing.length) {
   process.exit(1);
 }
 
-if (!Number.isInteger(shardCount) || !Number.isInteger(shardIndex) || shardIndex < 0 || shardIndex >= shardCount) {
-  console.error("[scanner] Invalid shard env.");
-  console.error("[scanner] PAYMENT_SCANNER_SHARD_INDEX must be between 0 and PAYMENT_SCANNER_SHARD_COUNT - 1");
-  process.exit(1);
-}
-
 console.log("[scanner] Starting VidiPay payment scanner worker");
-console.log(`[scanner] Shard ${shardIndex + 1}/${shardCount}`);
 console.log("[scanner] Expected heartbeat endpoint: /scanner/healthz -> status=ok");
 
 require("../server");
