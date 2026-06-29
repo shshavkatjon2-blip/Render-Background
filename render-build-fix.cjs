@@ -18,7 +18,32 @@ const pkg = {
     "verify:env:scanner": "node scripts/verify-env-1_5m.js scanner",
     "verify:live": "node scripts/verify-live-1_5m.js",
     "verify:package": "node scripts/verify-package-1_5m.js",
+    "verify:render": "node scripts/verify-render-blueprints-1_5m.js",
+    "verify:sql": "node scripts/verify-sql-package-1_5m.js",
+    "verify:contract": "node scripts/verify-contract-1_5m.js",
+    "verify:blockers": "node scripts/verify-remaining-blockers-package-1_5m.js",
+    "verify:ops": "node scripts/verify-hyperscale-operations-package-1_5m.js",
+    "verify:control-tower": "node scripts/verify-control-tower-package-1_5m.js",
+    "verify:live:ops": "node scripts/verify-live-ops-1_5m.js",
+    "verify:final-live-gate": "node scripts/final-live-gate-1_5m.js",
+    "verify:wallet-sql": "node scripts/verify-public-wallet-sql-batches-1_5m.js",
+    "verify:all": "npm run verify:package && npm run verify:render && npm run verify:sql && npm run verify:contract && npm run verify:blockers && npm run verify:ops && npm run verify:control-tower && npm run verify:infra-autopilot && npm run verify:upload-audit",
     "verify:staging": "node scripts/verify-staging-deploy.js",
+    "diagnose:live": "node scripts/diagnose-live-control-tower-1_5m.js",
+    "launch:manifest": "node scripts/build-production-launch-manifest-1_5m.js",
+    "closeout:kit": "node scripts/generate-closeout-execution-kit-1_5m.js",
+    "ops:infra-autopilot": "node scripts/generate-infra-autopilot-kit-1_5m.js",
+    "ops:scanner-blueprints": "node scripts/generate-scanner-worker-blueprints-1_5m.js",
+    "verify:render-env-file": "node scripts/verify-render-env-file-1_5m.js",
+    "verify:signer-keys": "node scripts/verify-signer-keys-dir-1_5m.js",
+    "verify:infra-autopilot": "node scripts/verify-infra-autopilot-package-1_5m.js",
+    "verify:upload-audit": "node scripts/final-upload-audit-1_5m.js",
+    "ops:wallet-manifest": "node scripts/generate-wallet-import-manifest-1_5m.js",
+    "ops:scanner-matrix": "node scripts/generate-scanner-shard-env-matrix-1_5m.js",
+    "ops:render-env-bundle": "node scripts/generate-render-env-bundle-1_5m.js",
+    "wallets:topup-plan": "node scripts/plan-wallet-topup-1_5m.js",
+    "wallets:generate-missing": "node scripts/generate-missing-ton-wallets-to-target-1_5m.js",
+    "wallets:public-import": "node scripts/build-public-wallet-import-from-keys-dir-1_5m.js",
     "wallets:verify": "node scripts/verify-ton-wallet-pool.js"
   },
   dependencies: {
@@ -36,7 +61,7 @@ const pkg = {
   }
 };
 
-console.log("=== VIDIPAY SCANNER BUILD FIX START ===");
+console.log("=== VIDIPAY API BUILD FIX START ===");
 console.log("cwd=", process.cwd());
 console.log("files_before=", fs.readdirSync(".").join(", "));
 fs.rmSync("node_modules", { recursive: true, force: true });
@@ -45,6 +70,6 @@ fs.writeFileSync("package.json", `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
 JSON.parse(fs.readFileSync("package.json", "utf8"));
 console.log("package_json_rewritten=true");
 console.log("server_js_exists=", fs.existsSync("server.js"));
-console.log("scanner_entry_exists=", fs.existsSync("scripts/start-scanner.js"));
+console.log("scripts_dir_exists=", fs.existsSync("scripts"));
 console.log("node_modules_removed=", !fs.existsSync("node_modules"));
-console.log("=== VIDIPAY SCANNER BUILD FIX END ===");
+console.log("=== VIDIPAY API BUILD FIX END ===");

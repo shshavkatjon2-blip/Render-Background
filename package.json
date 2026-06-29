@@ -8,7 +8,7 @@
   },
   "scripts": {
     "start": "node server.js",
-    "start:scanner": "node scripts/start-scanner.js",
+    "start:scanner": "node server.js",
     "generate:ton-wallets": "node scripts/generate-ton-wallet-pool.js",
     "generate:ton-wallets:large": "node scripts/generate-ton-wallet-pool-large.js",
     "verify:env": "node scripts/verify-env-1_5m.js",
