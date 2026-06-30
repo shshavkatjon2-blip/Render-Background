@@ -78,7 +78,7 @@ const HAS_LOCAL_FRONTEND = fs.existsSync(path.join(LOCAL_FRONTEND_DIR, "app-v5.h
 const BOT_TOKEN = process.env.BOT_TOKEN || "";
 const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || "";
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
-const TONAPI_KEY = process.env.TONAPI_KEY || "";
+const TONAPI_KEY = readEnvValue("TONAPI_KEY");
 const TONAPI_BASE_URL = (process.env.TONAPI_BASE_URL || "https://tonapi.io").replace(/\/$/, "");
 const PAYMENT_NETWORK = "TON";
 const PAYMENT_TOKEN = "TON";
@@ -92,9 +92,13 @@ const ACTIVATION_PAYOUT_TON = formatTokenAmount(process.env.ACTIVATION_PAYOUT_TO
 const TON_AUTO_PAYOUT_ENABLED = process.env.TON_AUTO_PAYOUT_ENABLED === "true";
 const TON_SIGNER_ENABLED = process.env.TON_SIGNER_ENABLED === "true";
 const TON_SIGNER_NETWORK = String(process.env.TON_SIGNER_NETWORK || "mainnet").trim().toLowerCase() === "testnet" ? "testnet" : "mainnet";
-const TON_SIGNER_KEYS_DIR = normalizeAddress(process.env.TON_SIGNER_KEYS_DIR || "");
-const TON_RPC_ENDPOINT = normalizeAddress(process.env.TON_RPC_ENDPOINT || "");
-const TON_RPC_API_KEY = normalizeAddress(process.env.TON_RPC_API_KEY || "");
+const TON_SIGNER_KEYS_DIR = normalizeAddress(readEnvValue("TON_SIGNER_KEYS_DIR"));
+const TON_RPC_ENDPOINT = normalizeAddress(readEnvValue("TON_RPC_ENDPOINT"));
+const TON_RPC_API_KEY = readEnvValue("TON_RPC_API_KEY");
+const TON_REMOTE_SIGNER_URL = normalizeAddress(readEnvValue("TON_REMOTE_SIGNER_URL")).replace(/\/$/, "");
+const TON_REMOTE_SIGNER_TOKEN = readEnvValue("TON_REMOTE_SIGNER_TOKEN");
+const TON_REMOTE_SIGNER_ENABLED = Boolean(TON_REMOTE_SIGNER_URL && TON_REMOTE_SIGNER_TOKEN);
+const TON_REMOTE_SIGNER_TIMEOUT_MS = Math.max(3000, Math.min(60000, Number(process.env.TON_REMOTE_SIGNER_TIMEOUT_MS || 25000)));
 const TON_PAYOUT_GAS_RESERVE = formatTokenAmount(process.env.TON_PAYOUT_GAS_RESERVE || "0.10");
 const TON_PAYOUT_BODY = String(process.env.TON_PAYOUT_BODY || "VidiPay activation payout").trim() || "VidiPay activation payout";
 const WALLET_UNLOCK_REQUIRED_USD = Math.max(0, Number(process.env.WALLET_UNLOCK_REQUIRED_USD || "20"));
@@ -124,6 +128,7 @@ const WORKER_MODE = String(process.env.WORKER_MODE || "").trim().toLowerCase();
 const SCANNER_WORKER_MODE = WORKER_MODE === "scanner";
 const PAYMENT_SCANNER_ENABLED = SCANNER_WORKER_MODE && process.env.PAYMENT_SCANNER_ENABLED !== "false";
 let tonSignerClientPromise = null;
+let tonSignerClientMetaCache = null;
 let tonSignerWalletIndexCache = null;
 
 function hasRealEnvValue(name) {
@@ -806,6 +811,17 @@ function normalizeAddress(value) {
   return String(value || "").trim();
 }
 
+function readEnvValue(name, fallback = "") {
+  let value = String(process.env[name] ?? fallback ?? "").trim();
+  if (value.startsWith(`${name}=`)) {
+    value = value.slice(name.length + 1).trim();
+  }
+  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+    value = value.slice(1, -1).trim();
+  }
+  return value;
+}
+
 function formatTokenAmount(value) {
   const number = Number(value);
   if (!Number.isFinite(number) || number < 0) return "0";
@@ -1010,50 +1026,137 @@ function getTonAutoPayoutStatusSummary() {
   return {
     requested: TON_AUTO_PAYOUT_ENABLED,
     signer_enabled: TON_SIGNER_ENABLED,
-    signer_ready: TON_SIGNER_ENABLED && keysDirExists,
-    active: TON_AUTO_PAYOUT_ENABLED && TON_SIGNER_ENABLED && keysDirExists,
+    signer_mode: TON_REMOTE_SIGNER_ENABLED ? "remote" : "local",
+    remote_signer_configured: TON_REMOTE_SIGNER_ENABLED,
+    remote_signer_url: TON_REMOTE_SIGNER_URL || "",
+    signer_ready: TON_SIGNER_ENABLED && (TON_REMOTE_SIGNER_ENABLED || keysDirExists),
+    active: TON_AUTO_PAYOUT_ENABLED && TON_SIGNER_ENABLED && (TON_REMOTE_SIGNER_ENABLED || keysDirExists),
     network: TON_SIGNER_NETWORK,
     keys_dir: TON_SIGNER_KEYS_DIR || "",
     keys_dir_exists: keysDirExists,
     wallet_files: walletFiles.length,
+    keys_dir_problem: !TON_SIGNER_KEYS_DIR
+      ? "TON_SIGNER_KEYS_DIR is empty"
+      : (!keysDirExists ? "TON_SIGNER_KEYS_DIR folder does not exist in this runtime" : (walletFiles.length === 0 ? "TON_SIGNER_KEYS_DIR has no .json signer wallet files" : null)),
     rpc_endpoint: TON_RPC_ENDPOINT || "auto:orbs-ton-access"
   };
 }
 
+async function fetchRemoteSignerJson(pathname, { method = "GET", body = null } = {}) {
+  if (!TON_REMOTE_SIGNER_ENABLED) {
+    throw new Error("TON_REMOTE_SIGNER_URL yoki TON_REMOTE_SIGNER_TOKEN kiritilmagan");
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TON_REMOTE_SIGNER_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${TON_REMOTE_SIGNER_URL}${pathname}`, {
+      method,
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${TON_REMOTE_SIGNER_TOKEN}`,
+        "X-Signer-Token": TON_REMOTE_SIGNER_TOKEN
+      },
+      body: body ? JSON.stringify(body) : undefined
+    });
+    const text = await response.text();
+    let payload = {};
+    try {
+      payload = text ? JSON.parse(text) : {};
+    } catch {
+      payload = { raw: text };
+    }
+    if (!response.ok || payload.ok === false || payload.success === false) {
+      throw new Error(payload.error || payload.message || `Remote signer HTTP ${response.status}`);
+    }
+    return payload;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function checkTonRemoteSignerReadiness() {
+  if (!TON_REMOTE_SIGNER_ENABLED) {
+    return {
+      ok: false,
+      configured: false,
+      url: TON_REMOTE_SIGNER_URL || ""
+    };
+  }
+  try {
+    const payload = await withOpsTimeout(fetchRemoteSignerJson("/healthz"), "remote_signer_healthz");
+    return {
+      ok: Boolean(payload.ok || payload.status === "ok"),
+      configured: true,
+      url: TON_REMOTE_SIGNER_URL,
+      wallet_files: payload.wallet_files ?? null,
+      keys_dir_exists: payload.keys_dir_exists ?? null,
+      rpc_ok: payload.rpc_ok ?? null,
+      mode: "remote"
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      configured: true,
+      url: TON_REMOTE_SIGNER_URL,
+      error: err.message || String(err),
+      mode: "remote"
+    };
+  }
+}
+
 async function buildTonSignerReadinessReport() {
   const signer = getTonAutoPayoutStatusSummary();
+  const remote = await checkTonRemoteSignerReadiness();
   let rpc = {
     ok: false,
     configured: Boolean(TON_RPC_ENDPOINT),
     endpoint: TON_RPC_ENDPOINT || "auto:orbs-ton-access"
   };
 
-  if (TON_SIGNER_ENABLED) {
+  if (TON_SIGNER_ENABLED && remote.ok) {
+    rpc = {
+      ok: true,
+      configured: true,
+      endpoint: `${TON_REMOTE_SIGNER_URL}/healthz`,
+      rpc_source: "remote_signer",
+      fallback_used: false,
+      api_key_used: false
+    };
+  } else if (TON_SIGNER_ENABLED) {
     try {
       const client = await withOpsTimeout(getTonSignerClient(), "ton_signer_client");
       const masterchain = await withOpsTimeout(client.getMasterchainInfo(), "ton_masterchain_info");
       rpc = {
         ok: Boolean(masterchain?.last),
         configured: Boolean(TON_RPC_ENDPOINT),
-        endpoint: TON_RPC_ENDPOINT || "auto:orbs-ton-access",
-        last_seqno: masterchain?.last?.seqno || null
+        endpoint: tonSignerClientMetaCache?.endpoint || TON_RPC_ENDPOINT || "auto:orbs-ton-access",
+        rpc_source: tonSignerClientMetaCache?.source || "unknown",
+        fallback_used: Boolean(tonSignerClientMetaCache?.fallback_used),
+        api_key_used: Boolean(tonSignerClientMetaCache?.api_key_used),
+        last_seqno: masterchain?.last?.seqno || tonSignerClientMetaCache?.last_seqno || null
       };
     } catch (err) {
       rpc = {
         ok: false,
         configured: Boolean(TON_RPC_ENDPOINT),
         endpoint: TON_RPC_ENDPOINT || "auto:orbs-ton-access",
-        error: err.message || String(err)
+        error: err.message || String(err),
+        rpc_errors: Array.isArray(err.rpc_errors) ? err.rpc_errors : undefined
       };
     }
   }
 
+  const signerStorageReady = remote.ok || (signer.keys_dir_exists && signer.wallet_files > 0);
+
   return {
-    ok: Boolean(TON_AUTO_PAYOUT_ENABLED && TON_SIGNER_ENABLED && signer.keys_dir_exists && signer.wallet_files > 0 && rpc.ok),
+    ok: Boolean(TON_AUTO_PAYOUT_ENABLED && TON_SIGNER_ENABLED && signerStorageReady && rpc.ok),
     require_for_1_5m: REQUIRE_TON_AUTO_PAYOUT_FOR_1_5M,
     auto_payout_enabled: TON_AUTO_PAYOUT_ENABLED,
     signer_enabled: TON_SIGNER_ENABLED,
     signer,
+    remote_signer: remote,
     rpc,
     payout_amount_ton: Number(ACTIVATION_PAYOUT_TON),
     gas_reserve_ton: Number(TON_PAYOUT_GAS_RESERVE)
@@ -1063,13 +1166,68 @@ async function buildTonSignerReadinessReport() {
 async function getTonSignerClient() {
   if (!tonSignerClientPromise) {
     tonSignerClientPromise = (async () => {
-      const endpoint = TON_RPC_ENDPOINT || await getHttpEndpoint({ network: TON_SIGNER_NETWORK });
-      return new TonClient({
-        endpoint,
-        apiKey: TON_RPC_API_KEY || undefined
-      });
+      const candidates = [];
+      if (TON_RPC_ENDPOINT) {
+        if (TON_RPC_API_KEY) {
+          candidates.push({
+            source: "configured_with_api_key",
+            endpoint: TON_RPC_ENDPOINT,
+            apiKey: TON_RPC_API_KEY
+          });
+        }
+        candidates.push({
+          source: "configured_without_api_key",
+          endpoint: TON_RPC_ENDPOINT,
+          apiKey: ""
+        });
+      }
+
+      try {
+        candidates.push({
+          source: "auto_orbs_ton_access",
+          endpoint: await getHttpEndpoint({ network: TON_SIGNER_NETWORK }),
+          apiKey: ""
+        });
+      } catch (error) {
+        candidates.push({
+          source: "auto_orbs_ton_access",
+          endpoint: "",
+          apiKey: "",
+          setup_error: error.message || String(error)
+        });
+      }
+
+      const rpcErrors = [];
+      for (const candidate of candidates) {
+        if (!candidate.endpoint) {
+          rpcErrors.push(`${candidate.source}: ${candidate.setup_error || "endpoint empty"}`);
+          continue;
+        }
+        try {
+          const client = new TonClient({
+            endpoint: candidate.endpoint,
+            apiKey: candidate.apiKey || undefined
+          });
+          const masterchain = await withOpsTimeout(client.getMasterchainInfo(), `ton_rpc_${candidate.source}`);
+          tonSignerClientMetaCache = {
+            source: candidate.source,
+            endpoint: candidate.endpoint,
+            fallback_used: candidate.source !== "configured_with_api_key",
+            api_key_used: Boolean(candidate.apiKey),
+            last_seqno: masterchain?.last?.seqno || null
+          };
+          return client;
+        } catch (error) {
+          rpcErrors.push(`${candidate.source}: ${error.message || String(error)}`);
+        }
+      }
+
+      const error = new Error(`TON RPC ishlamadi: ${rpcErrors.join(" | ")}`);
+      error.rpc_errors = rpcErrors;
+      throw error;
     })().catch((error) => {
       tonSignerClientPromise = null;
+      tonSignerClientMetaCache = null;
       throw error;
     });
   }
@@ -1257,6 +1415,26 @@ async function markWithdrawAutoPayoutError(withdrawId, message, options = {}) {
 async function sendTonPayoutFromPoolWallet({ sourceWalletAddress, destinationWalletAddress, amountTon, comment }) {
   if (!TON_SIGNER_ENABLED) {
     throw new Error("TON signer yoqilmagan");
+  }
+  if (TON_REMOTE_SIGNER_ENABLED) {
+    const payout = await fetchRemoteSignerJson("/payout", {
+      method: "POST",
+      body: {
+        source_wallet_address: sourceWalletAddress,
+        destination_wallet_address: destinationWalletAddress,
+        amount_ton: amountTon,
+        comment: comment || TON_PAYOUT_BODY
+      }
+    });
+    return {
+      source_wallet_address: normalizeAddress(payout.source_wallet_address || sourceWalletAddress),
+      destination_wallet_address: normalizeAddress(payout.destination_wallet_address || destinationWalletAddress),
+      amount_ton: Number(payout.amount_ton ?? amountTon),
+      seqno: payout.seqno ?? null,
+      confirmed_seqno: payout.confirmed_seqno ?? null,
+      remote_signer: true,
+      tx_hash: payout.tx_hash || null
+    };
   }
   if (!TON_SIGNER_KEYS_DIR) {
     throw new Error("TON_SIGNER_KEYS_DIR ko'rsatilmagan");
@@ -2062,8 +2240,6 @@ const opsFastCaches = {
 const PAYMENT_SCANNER_WORKER_ID = String(process.env.PAYMENT_SCANNER_WORKER_ID || `scanner-${Math.random().toString(36).slice(2)}`);
 const PAYMENT_SCANNER_HEARTBEAT_TABLE = "payment_scanner_heartbeats";
 let scannerHeartbeatWarned = false;
-let scannerHeartbeatOkLogged = false;
-let scannerHeartbeatPulseTimer = null;
 let scannerClaimRpcWarned = false;
 
 function cloneJsonSafe(value) {
@@ -2159,10 +2335,6 @@ async function recordPaymentScannerHeartbeat() {
       console.warn("[payments] scanner heartbeat unavailable:", error.message || error);
     }
     return false;
-  }
-  if (SCANNER_WORKER_MODE && !scannerHeartbeatOkLogged) {
-    scannerHeartbeatOkLogged = true;
-    console.log(`[scanner] heartbeat ok worker=${PAYMENT_SCANNER_WORKER_ID} shard=${PAYMENT_SCANNER_SHARD_INDEX}/${PAYMENT_SCANNER_SHARD_COUNT}`);
   }
   return true;
 }
@@ -6358,18 +6530,6 @@ function startPaymentScanner() {
   if (!PAYMENT_SCANNER_ENABLED) {
     throw new Error("[scanner] Refusing to start because PAYMENT_SCANNER_ENABLED is not true");
   }
-  console.log(`[scanner] worker mode active id=${PAYMENT_SCANNER_WORKER_ID} shard=${PAYMENT_SCANNER_SHARD_INDEX}/${PAYMENT_SCANNER_SHARD_COUNT}`);
-  const heartbeatPulseMs = Math.max(10000, Math.min(60000, Number(process.env.PAYMENT_SCANNER_HEARTBEAT_PULSE_MS || 10000)));
-  const pulse = async () => {
-    try {
-      await recordPaymentScannerHeartbeat();
-    } catch (err) {
-      paymentScannerState.lastError = err.message || String(err);
-      console.warn("[scanner] heartbeat pulse failed:", paymentScannerState.lastError);
-    }
-  };
-  void pulse();
-  scannerHeartbeatPulseTimer = setInterval(pulse, heartbeatPulseMs);
   const nextDelay = () => {
     const jitter = PAYMENT_SCAN_JITTER_MS ? Math.floor(Math.random() * PAYMENT_SCAN_JITTER_MS) : 0;
     return PAYMENT_SCAN_INTERVAL_MS + jitter;
@@ -6384,11 +6544,8 @@ function startPaymentScanner() {
         schedule(nextDelay());
       }
     }, delayMs);
+    timer.unref?.();
   };
-  void scanPendingPaymentOrders().catch((err) => {
-    paymentScannerState.lastError = err.message || String(err);
-    recordPaymentScannerHeartbeat().catch(() => {});
-  });
   schedule(Math.floor(Math.random() * Math.max(1, PAYMENT_SCAN_JITTER_MS || PAYMENT_SCAN_INTERVAL_MS)));
 }
 
