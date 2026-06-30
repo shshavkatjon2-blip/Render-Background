@@ -1,6 +1,9 @@
 process.env.WORKER_MODE = "scanner";
 process.env.PAYMENT_SCANNER_ENABLED = process.env.PAYMENT_SCANNER_ENABLED || "true";
 
+const fs = require("fs");
+const path = require("path");
+
 const REQUIRED = [
   "SUPABASE_URL",
   "SUPABASE_SERVICE_ROLE_KEY",
@@ -37,4 +40,16 @@ console.log("[scanner] Starting VidiPay payment scanner worker");
 console.log(`[scanner] Shard ${shardIndex + 1}/${shardCount}`);
 console.log("[scanner] Expected heartbeat endpoint: /scanner/healthz -> status=ok");
 
-require("../server");
+const candidates = [
+  path.join(__dirname, "server.js"),
+  path.join(__dirname, "..", "server.js")
+];
+const serverPath = candidates.find((candidate) => fs.existsSync(candidate));
+
+if (!serverPath) {
+  console.error("[scanner] Cannot find server.js next to start-scanner.js or one folder above.");
+  console.error(`[scanner] checked=${candidates.join(", ")}`);
+  process.exit(1);
+}
+
+require(serverPath);
