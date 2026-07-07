@@ -2051,7 +2051,9 @@ async function markWithdrawAutoPayoutError(withdrawId, message, options = {}) {
 
   if (options.status) {
     updateBody.status = options.status;
-    updateBody.processed_at = new Date().toISOString();
+    if (!["pending", "processing"].includes(String(options.status))) {
+      updateBody.processed_at = new Date().toISOString();
+    }
   }
 
   const { data } = await supabase
@@ -2185,7 +2187,7 @@ async function tryAutoProcessDepositRefundWithdraw(withdraw) {
       admin_note: adminNote
     })
     .eq("id", withdraw.id)
-    .eq("status", "pending")
+    .in("status", ["pending", "processing"])
     .select()
     .maybeSingle();
 
@@ -4088,6 +4090,7 @@ async function buildDepositRehearsalDbAudit(options = {}) {
   const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
   const freshWindowMinutes = Math.max(PAYMENT_ORDER_TTL_MINUTES + PAYMENT_LATE_GRACE_MINUTES, 45);
   const freshWindowIso = new Date(now.getTime() - freshWindowMinutes * 60 * 1000).toISOString();
+  const staleRefundProcessingBefore = new Date(now.getTime() - 15 * 60 * 1000).toISOString();
   const depositAuditCount = (table, label, applyQuery) =>
     safeSupabaseCount(table, label, applyQuery, { countMode: DEPOSIT_REHEARSAL_COUNT_MODE });
   const counts = await Promise.all([
@@ -4129,6 +4132,10 @@ async function buildDepositRehearsalDbAudit(options = {}) {
     depositAuditCount("withdraws", "deposit_refund_withdraws_active", (query) => query
       .eq("wallet_type", "TON_DEPOSIT_REFUND")
       .in("status", ["pending", "processing"])),
+    depositAuditCount("withdraws", "deposit_refund_withdraws_processing_stale_15m", (query) => query
+      .eq("wallet_type", "TON_DEPOSIT_REFUND")
+      .eq("status", "processing")
+      .lt("created_at", staleRefundProcessingBefore)),
     depositAuditCount("withdraws", "deposit_refund_withdraws_completed_24h", (query) => query
       .eq("wallet_type", "TON_DEPOSIT_REFUND")
       .in("status", ["approved", "paid", "auto_paid"])
@@ -5335,7 +5342,7 @@ function buildRealTonTestControlRoomReport(snapshot, dbAudit) {
     stop_conditions: [
       "Do not send TON if this endpoint is blocked.",
       "Stop if scanner workers drop below 4/4.",
-      "Stop if active shards are not exactly 4 or duplicate shards appear.",
+      "Stop if active shard coverage is below the configured readiness threshold or duplicate shards appear.",
       "Stop if the user does not see a unique TON address.",
       "Stop if TON signer or final gate becomes not ready.",
       "Stop if the first real test is not detected before increasing test volume."
@@ -5356,6 +5363,7 @@ function buildDepositRefundPayoutSafetyReport(snapshot, dbAudit) {
   const pendingRefunds = Number(counts.deposit_refund_withdraws_pending?.count || 0);
   const processingRefunds = Number(counts.deposit_refund_withdraws_processing?.count || 0);
   const activeRefunds = Number(counts.deposit_refund_withdraws_active?.count || (pendingRefunds + processingRefunds));
+  const staleProcessingRefunds15m = Number(counts.deposit_refund_withdraws_processing_stale_15m?.count || 0);
   const completedRefunds24h = Number(counts.deposit_refund_withdraws_completed_24h?.count || 0);
   const failedRefunds24h = Number(counts.deposit_refund_withdraws_failed_24h?.count || 0);
   const remoteSignerWalletFiles = Number(snapshot?.ton_signer?.remote_signer?.wallet_files || 0);
@@ -5372,6 +5380,7 @@ function buildDepositRefundPayoutSafetyReport(snapshot, dbAudit) {
   add("refund_payout_amount_6_16", almostEqualNumber(amountContract.auto_payout_amount, 6.16), `payout=${amountContract.auto_payout_amount}`);
   add("refund_payout_less_than_min_received", Number(amountContract.auto_payout_amount) < Number(amountContract.min_received), `payout=${amountContract.auto_payout_amount}, min=${amountContract.min_received}`);
   add("gas_reserve_positive", Number(amountContract.gas_reserve) > 0, `gas_reserve=${amountContract.gas_reserve}`);
+  add("stale_processing_refunds_zero", staleProcessingRefunds15m === 0, `stale_processing_15m=${staleProcessingRefunds15m}`);
   add("active_refund_queue_reasonable", activeRefunds <= 100, `active=${activeRefunds}`, "warning");
   add("failed_refunds_24h_watch", failedRefunds24h === 0, `failed_24h=${failedRefunds24h}`, "warning");
   add("db_audit_readable", dbAudit?.counts_readable === true, `counts_readable=${Boolean(dbAudit?.counts_readable)}`);
@@ -5404,6 +5413,7 @@ function buildDepositRefundPayoutSafetyReport(snapshot, dbAudit) {
     observed: {
       pending_refunds: pendingRefunds,
       processing_refunds: processingRefunds,
+      stale_processing_refunds_15m: staleProcessingRefunds15m,
       active_refunds: activeRefunds,
       completed_refunds_24h: completedRefunds24h,
       failed_refunds_24h: failedRefunds24h,
@@ -5416,6 +5426,7 @@ function buildDepositRefundPayoutSafetyReport(snapshot, dbAudit) {
       "Stop if this endpoint is blocked.",
       "Stop if TON signer, remote signer, or RPC is not ready.",
       "Stop if payout amount is not 6.16 TON.",
+      "Stop if any activation deposit refund stays processing for more than 15 minutes.",
       "Stop if failed refunds appear during the first controlled real test.",
       "Stop if active refund queue grows unexpectedly before first test completes."
     ],
@@ -7810,7 +7821,7 @@ app.post("/withdraw/request", async (req, res) => {
         .select("id,status")
         .eq("telegram_id", telegramId)
         .eq("wallet_type", "TON_DEPOSIT_REFUND")
-        .in("status", ["pending", "approved"])
+        .in("status", ["pending", "processing", "approved", "paid", "auto_paid"])
         .limit(1)
         .maybeSingle();
 
@@ -7917,7 +7928,7 @@ app.post("/withdraw/request", async (req, res) => {
           const rejectedWithdraw = await markWithdrawAutoPayoutError(
             withdraw.id,
             autoPayoutError.message,
-            autoPayoutError.payoutSubmitted ? {} : { status: "rejected" }
+            autoPayoutError.payoutSubmitted ? { status: "processing" } : { status: "rejected" }
           );
           if (rejectedWithdraw) withdrawResult = rejectedWithdraw;
           autoPayout = {
@@ -7925,6 +7936,14 @@ app.post("/withdraw/request", async (req, res) => {
             status: autoPayoutError.payoutSubmitted ? "submitted_unconfirmed" : "failed",
             error: autoPayoutError.message
           };
+          if (autoPayoutError.payoutSubmitted) {
+            try {
+              await debitUserBalance();
+            } catch (debitError) {
+              await markWithdrawAutoPayoutError(withdraw.id, `Balance debit failed after submitted payout: ${debitError.message}`, { status: "processing" });
+              autoPayout.balance_debit_error = debitError.message;
+            }
+          }
         }
       } else {
         autoPayout = {
@@ -8540,8 +8559,16 @@ app.post("/admin/withdraw/:id/auto-payout", requireAdmin, async (req, res) => {
       withdraw: result.withdraw
     });
   } catch (err) {
-    await markWithdrawAutoPayoutError(req.params.id, err.message);
-    res.status(500).json({ error: err.message });
+    const updatedWithdraw = await markWithdrawAutoPayoutError(
+      req.params.id,
+      err.message,
+      err.payoutSubmitted ? { status: "processing" } : {}
+    );
+    res.status(err.payoutSubmitted ? 202 : 500).json({
+      status: err.payoutSubmitted ? "submitted_unconfirmed" : "failed",
+      error: err.message,
+      withdraw: updatedWithdraw
+    });
   }
 });
 
