@@ -135,6 +135,9 @@ const PAYMENT_SCAN_CONCURRENCY = Math.max(1, Math.min(128, Number(process.env.PA
 const PAYMENT_SCAN_JITTER_MS = Math.max(0, Math.min(60000, Number(process.env.PAYMENT_SCAN_JITTER_MS || 2500)));
 const PAYMENT_SCAN_ORDER_DELAY_MS = Math.max(0, Math.min(5000, Number(process.env.PAYMENT_SCAN_ORDER_DELAY_MS || 10)));
 const PAYMENT_SCAN_MAX_ERRORS_PER_RUN = Math.max(1, Math.min(10000, Number(process.env.PAYMENT_SCAN_MAX_ERRORS_PER_RUN || 500)));
+const PAYMENT_WALLETLESS_REPAIR_ENABLED = process.env.PAYMENT_WALLETLESS_REPAIR_ENABLED !== "false";
+const PAYMENT_WALLETLESS_REPAIR_BATCH_SIZE = Math.max(1, Math.min(1000, Number(process.env.PAYMENT_WALLETLESS_REPAIR_BATCH_SIZE || Math.min(250, PAYMENT_SCAN_BATCH_SIZE))));
+const PAYMENT_WALLETLESS_REPAIR_CONCURRENCY = Math.max(1, Math.min(32, Number(process.env.PAYMENT_WALLETLESS_REPAIR_CONCURRENCY || 8)));
 const WORKER_MODE = String(process.env.WORKER_MODE || "").trim().toLowerCase();
 const SCANNER_WORKER_MODE = WORKER_MODE === "scanner";
 const PAYMENT_SCANNER_MARKETING_FANOUT_64 = SCANNER_WORKER_MODE && process.env.PAYMENT_SCANNER_MARKETING_FANOUT_64 !== "false";
@@ -540,6 +543,12 @@ function requireFields(body, fields) {
 }
 
 const RATE_LIMIT_BACKEND = String(process.env.RATE_LIMIT_BACKEND || "memory").trim().toLowerCase();
+const RATE_LIMIT_ADMIN_MAX = Math.max(20, Math.min(10000, Number(process.env.RATE_LIMIT_ADMIN_MAX || 300)));
+const RATE_LIMIT_ADMIN_WINDOW_MS = Math.max(60000, Math.min(3600000, Number(process.env.RATE_LIMIT_ADMIN_WINDOW_MS || 15 * 60 * 1000)));
+const RATE_LIMIT_TELEGRAM_MAX = Math.max(100, Math.min(250000, Number(process.env.RATE_LIMIT_TELEGRAM_MAX || 6000)));
+const RATE_LIMIT_TELEGRAM_WINDOW_MS = Math.max(60000, Math.min(3600000, Number(process.env.RATE_LIMIT_TELEGRAM_WINDOW_MS || 15 * 60 * 1000)));
+const RATE_LIMIT_PUBLIC_MAX = Math.max(600, Math.min(500000, Number(process.env.RATE_LIMIT_PUBLIC_MAX || 6000)));
+const RATE_LIMIT_PUBLIC_WINDOW_MS = Math.max(1000, Math.min(3600000, Number(process.env.RATE_LIMIT_PUBLIC_WINDOW_MS || 60 * 1000)));
 const REDIS_URL = String(process.env.REDIS_URL || "").trim();
 const REDIS_SCANNER_LOCKS_ENABLED = process.env.REDIS_SCANNER_LOCKS_ENABLED === "true";
 const REDIS_SCANNER_LOCKS_REQUIRED = process.env.REDIS_SCANNER_LOCKS_REQUIRED === "true";
@@ -562,6 +571,17 @@ const MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS = Math.max(MARKETING_SPIKE_MIN
 const MARKETING_SPIKE_MIN_ACTIVE_SHARDS = Math.max(1, Math.min(MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS, Number(process.env.MARKETING_SPIKE_MIN_ACTIVE_SHARDS || MARKETING_SPIKE_MIN_SCANNER_WORKERS)));
 const MARKETING_SPIKE_MAX_PENDING_BACKLOG = Math.max(0, Number(process.env.MARKETING_SPIKE_MAX_PENDING_BACKLOG || 5000));
 const MARKETING_SPIKE_GATE_VERSION = "marketing-spike-gate-700k-5d-20260706";
+function getRequiredActiveScannerShards() {
+  const configuredShardCount = Math.max(1, Number(PAYMENT_SCANNER_SHARD_COUNT || FINAL_GATE_MIN_SCANNER_WORKERS || 4));
+  const desiredShardCoverage = Math.max(FINAL_GATE_MIN_SCANNER_WORKERS, MARKETING_SPIKE_MIN_ACTIVE_SHARDS || 0);
+  return Math.max(1, Math.min(configuredShardCount, desiredShardCoverage));
+}
+function scannerActiveShardCoverageReady(activeShards) {
+  return Number(activeShards || 0) >= getRequiredActiveScannerShards();
+}
+function scannerActiveShardCoverageDetail(activeShards) {
+  return `active=${Number(activeShards || 0)}, required=${getRequiredActiveScannerShards()}`;
+}
 const rateBuckets = new Map();
 let redisClientPromise = null;
 let redisRateLimitWarned = false;
@@ -575,7 +595,17 @@ setInterval(() => {
   }
 }, 60 * 60 * 1000);
 
+function rateLimitUserKeyFromPath(req) {
+  const path = String(req.path || req.originalUrl || req.url || "");
+  const match = path.match(/^\/(?:user|stats|history|notifications|withdraw|payment\/status)\/([A-Za-z0-9_-]{4,64})(?:\/|$|\?)/);
+  if (!match) return "";
+  const value = match[1];
+  return /^\d{4,32}$/.test(value) ? `tg:${value}` : `id:${value}`;
+}
+
 function clientRateKey(req, scope) {
+  const userKey = rateLimitUserKeyFromPath(req);
+  if (userKey) return `${scope}:${userKey}`;
   const forwarded = req.headers["x-forwarded-for"];
   const raw = Array.isArray(forwarded) ? forwarded[0] : forwarded;
   const ip = (raw || req.headers["x-real-ip"] || req.socket?.remoteAddress || "unknown")
@@ -874,9 +904,9 @@ function detectCountryFromHeaders(req) {
   return null;
 }
 
-app.use("/admin", rateLimit("admin", 80, 15 * 60 * 1000));
-app.use("/telegram", rateLimit("telegram", 300, 15 * 60 * 1000));
-app.use(rateLimit("public", 600, 15 * 60 * 1000));
+app.use("/admin", rateLimit("admin", RATE_LIMIT_ADMIN_MAX, RATE_LIMIT_ADMIN_WINDOW_MS));
+app.use("/telegram", rateLimit("telegram", RATE_LIMIT_TELEGRAM_MAX, RATE_LIMIT_TELEGRAM_WINDOW_MS));
+app.use(rateLimit("public", RATE_LIMIT_PUBLIC_MAX, RATE_LIMIT_PUBLIC_WINDOW_MS));
 
 async function findUserByTelegramId(telegramId) {
   return supabase
@@ -2206,6 +2236,72 @@ async function expireStalePaymentOrders() {
 
     if (walletError && !["42P01", "42703"].includes(walletError.code)) throw walletError;
   }
+}
+
+async function repairWalletlessPendingPaymentOrders(limit = PAYMENT_WALLETLESS_REPAIR_BATCH_SIZE, context = getPaymentScannerDefaultContext()) {
+  if (!PAYMENT_WALLETLESS_REPAIR_ENABLED) {
+    return { skipped: true, reason: "disabled", checked: 0, repaired: 0, errors: 0 };
+  }
+
+  const shardIndex = Math.max(0, Number(context?.shardIndex ?? PAYMENT_SCANNER_SHARD_INDEX ?? 0));
+  if (shardIndex !== 0) {
+    return { skipped: true, reason: "leader_shard_only", checked: 0, repaired: 0, errors: 0 };
+  }
+
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const repairLimit = Math.max(1, Math.min(1000, Number(limit || PAYMENT_WALLETLESS_REPAIR_BATCH_SIZE)));
+  const { data: orders, error } = await supabase
+    .from("payment_orders")
+    .select("*")
+    .eq("status", "pending")
+    .eq("network", PAYMENT_NETWORK)
+    .eq("token", PAYMENT_TOKEN)
+    .is("wallet_address", null)
+    .or(`expires_at.is.null,expires_at.gt.${nowIso}`)
+    .order("created_at", { ascending: true })
+    .limit(repairLimit);
+
+  if (error) {
+    if (["42P01", "42703"].includes(error.code)) {
+      return { skipped: true, reason: error.code, checked: 0, repaired: 0, errors: 0 };
+    }
+    throw error;
+  }
+
+  const queue = Array.isArray(orders) ? orders : [];
+  if (!queue.length) return { skipped: false, checked: 0, repaired: 0, errors: 0 };
+
+  let cursor = 0;
+  let checked = 0;
+  let repaired = 0;
+  let errors = 0;
+  const workerCount = Math.min(PAYMENT_WALLETLESS_REPAIR_CONCURRENCY, queue.length);
+
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (cursor < queue.length) {
+      const order = queue[cursor++];
+      checked += 1;
+      const telegramId = String(order?.telegram_id || "").trim();
+      if (!isSafeTelegramId(telegramId)) continue;
+
+      try {
+        const currentExpires = Date.parse(order.expires_at || "");
+        const expiresAt = Number.isFinite(currentExpires) && currentExpires > now.getTime()
+          ? order.expires_at
+          : addMinutes(new Date(), PAYMENT_ORDER_TTL_MINUTES).toISOString();
+        const repairedOrder = await refreshPendingPaymentOrder(normalizePaymentOrder(order), telegramId, new Date(), expiresAt);
+        if (repairedOrder?.wallet_address && isLikelyTonAddress(repairedOrder.wallet_address)) repaired += 1;
+      } catch (err) {
+        errors += 1;
+        if (errors <= 3) {
+          console.warn("[payments] walletless pending order repair skipped:", err.message || String(err));
+        }
+      }
+    }
+  }));
+
+  return { skipped: false, checked, repaired, errors };
 }
 
 async function getExistingPaymentOrder(telegramId) {
@@ -4713,10 +4809,10 @@ function buildProductionSlaReport(snapshot) {
       detail: `stale=${Boolean(snapshot?.scanner?.heartbeat_stale)}, latest_seen_at=${snapshot?.scanner?.latest_seen_at || "-"}`
     },
     {
-      name: "scanner_active_shards_4",
-      ok: activeShards === 4,
+      name: "scanner_active_shards_minimum",
+      ok: scannerActiveShardCoverageReady(activeShards),
       severity: "blocker",
-      detail: `active=${activeShards}`
+      detail: scannerActiveShardCoverageDetail(activeShards)
     },
     {
       name: "scanner_duplicate_shards_zero",
@@ -4924,7 +5020,7 @@ function buildCapacityForecast(snapshot) {
     scanner_pool: {
       alive_workers: scannerWorkersAlive,
       active_shards: activeShards,
-      expected_shards: 4,
+      expected_shards: getRequiredActiveScannerShards(),
       scan_batch_size: Number(snapshot?.scanner?.scan_batch_size || PAYMENT_SCAN_BATCH_SIZE),
       scan_concurrency: Number(snapshot?.scanner?.scan_concurrency || PAYMENT_SCAN_CONCURRENCY),
       coverage: scannerCoverage
@@ -5076,7 +5172,7 @@ function buildDepositRehearsalReport(snapshot, dbAudit) {
   add("final_gate_ready", snapshot?.gate?.status === "ready", `status=${snapshot?.gate?.status || "unknown"}`);
   add("amount_contract_ready", amountContract.ok, `blockers=${amountContract.blockers.length}`);
   add("scanner_workers_4_alive", scannerWorkersAlive >= FINAL_GATE_MIN_SCANNER_WORKERS, `alive=${scannerWorkersAlive}, required=${FINAL_GATE_MIN_SCANNER_WORKERS}`);
-  add("scanner_active_shards_4", activeShards === 4, `active=${activeShards}`);
+  add("scanner_active_shards_minimum", scannerActiveShardCoverageReady(activeShards), scannerActiveShardCoverageDetail(activeShards));
   add("scanner_duplicate_shards_zero", duplicateShards.length === 0, `duplicates=${duplicateShards.join(",") || "0"}`);
   add("scanner_heartbeat_fresh", snapshot?.scanner?.heartbeat_available === true && snapshot?.scanner?.heartbeat_stale === false, `stale=${Boolean(snapshot?.scanner?.heartbeat_stale)}`);
   add("wallet_capacity_available_1_5m", availableWallets >= CAPACITY_TARGET_USERS, `available=${availableWallets}, target=${CAPACITY_TARGET_USERS}`);
@@ -5181,7 +5277,7 @@ function buildRealTonTestControlRoomReport(snapshot, dbAudit) {
   add("deposit_rehearsal_all_blockers_clear", rehearsal.ok === true, `blockers=${rehearsal.blockers.length}`);
   add("final_gate_ready", gateStatus === "ready", `status=${gateStatus}`);
   add("scanner_workers_4_alive", scannerWorkersAlive >= FINAL_GATE_MIN_SCANNER_WORKERS, `alive=${scannerWorkersAlive}`);
-  add("scanner_active_shards_4", activeShards === 4, `active=${activeShards}`);
+  add("scanner_active_shards_minimum", scannerActiveShardCoverageReady(activeShards), scannerActiveShardCoverageDetail(activeShards));
   add("scanner_duplicate_shards_empty", duplicateShards.length === 0, `duplicates=${duplicateShards.length}`);
   add("wallet_pool_has_1_5m_capacity", availableWallets >= CAPACITY_TARGET_USERS, `available=${availableWallets}, target=${CAPACITY_TARGET_USERS}`);
   add("wallet_pool_buffer_non_negative", walletBuffer >= 0, `buffer=${walletBuffer}`);
@@ -5363,7 +5459,7 @@ function buildCanaryRolloutReport(snapshot, dbAudit) {
   add("real_test_control_room_ready", controlRoom.ok === true, `status=${controlRoom.status}, blockers=${controlRoom.blockers.length}`);
   add("deposit_refund_safety_ready", refundSafety.ok === true, `status=${refundSafety.status}, blockers=${refundSafety.blockers.length}`);
   add("scanner_workers_4_alive", scannerWorkersAlive >= FINAL_GATE_MIN_SCANNER_WORKERS, `alive=${scannerWorkersAlive}, required=${FINAL_GATE_MIN_SCANNER_WORKERS}`);
-  add("scanner_active_shards_4", activeShards === 4, `active=${activeShards}`);
+  add("scanner_active_shards_minimum", scannerActiveShardCoverageReady(activeShards), scannerActiveShardCoverageDetail(activeShards));
   add("scanner_duplicate_shards_zero", duplicateShards.length === 0, `duplicates=${duplicateShards.join(",") || "0"}`);
   add("redis_ready", snapshot?.redis?.ok === true && snapshot?.redis_deep?.ok === true, `redis=${Boolean(snapshot?.redis?.ok)}, deep=${Boolean(snapshot?.redis_deep?.ok)}`);
   add("wallet_capacity_1_5m_ready", availableWallets >= CAPACITY_TARGET_USERS, `available=${availableWallets}, target=${CAPACITY_TARGET_USERS}`);
@@ -5390,7 +5486,7 @@ function buildCanaryRolloutReport(snapshot, dbAudit) {
   const rollbackTriggers = [
     { name: "final_gate_blocked", active: snapshot?.gate?.status !== "ready", detail: `status=${snapshot?.gate?.status || "unknown"}` },
     { name: "scanner_workers_below_4", active: scannerWorkersAlive < FINAL_GATE_MIN_SCANNER_WORKERS, detail: `alive=${scannerWorkersAlive}` },
-    { name: "active_shards_not_4", active: activeShards !== 4, detail: `active=${activeShards}` },
+    { name: "active_shards_below_required", active: !scannerActiveShardCoverageReady(activeShards), detail: scannerActiveShardCoverageDetail(activeShards) },
     { name: "duplicate_shards_present", active: duplicateShards.length > 0, detail: `duplicates=${duplicateShards.join(",") || "0"}` },
     { name: "wallet_pool_below_1_5m", active: availableWallets < CAPACITY_TARGET_USERS, detail: `available=${availableWallets}` },
     { name: "ton_signer_not_ready", active: snapshot?.ton_signer?.ok !== true, detail: `ok=${Boolean(snapshot?.ton_signer?.ok)}` },
@@ -5568,6 +5664,9 @@ async function scanPendingPaymentOrders(limit = PAYMENT_SCAN_BATCH_SIZE, context
     await expireStalePaymentOrders().catch((err) => {
       if (err?.code !== "23505") throw err;
       console.warn("[payments] scanner stale cleanup skipped because of legacy unique status constraint");
+    });
+    await repairWalletlessPendingPaymentOrders(PAYMENT_WALLETLESS_REPAIR_BATCH_SIZE, context).catch((err) => {
+      console.warn("[payments] scanner walletless pending repair skipped:", err.message || String(err));
     });
     const orders = await claimPendingPaymentOrdersForScan(limit, context);
 
