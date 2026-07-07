@@ -5952,6 +5952,188 @@ function buildControlledRealTestAutopilotReport(snapshot, dbAudit) {
   };
 }
 
+function buildPreRealTestTomorrowGateReport(snapshot, dbAudit, orderRefresh) {
+  const autopilot = buildControlledRealTestAutopilotReport(snapshot, dbAudit);
+  const certification = buildProductionLaunchCertificationReport(snapshot, dbAudit);
+  const controlRoom = buildRealTonTestControlRoomReport(snapshot, dbAudit);
+  const refundSafety = buildDepositRefundPayoutSafetyReport(snapshot, dbAudit);
+  const canary = buildCanaryRolloutReport(snapshot, dbAudit);
+  const hardening = buildProductionHardeningReport(snapshot);
+  const monitoring = buildProductionMonitoringReport(snapshot);
+  const incident = buildIncidentStatusReport(snapshot);
+  const security = buildSecurityStatus();
+  const frontendContract = buildFrontendDeploymentContract();
+  const counts = dbAudit?.counts || {};
+  const scannerWorkersAlive = Number(autopilot.observed.scanner_workers_alive || 0);
+  const activeShards = Number(autopilot.observed.active_shards || 0);
+  const duplicateShards = Array.isArray(autopilot.observed.duplicate_shards) ? autopilot.observed.duplicate_shards : [];
+  const availableWallets = Number(autopilot.observed.available_wallets || 0);
+  const walletBuffer = Number(autopilot.observed.wallet_buffer || (availableWallets - CAPACITY_TARGET_USERS));
+  const remoteSignerWalletFiles = Number(autopilot.observed.remote_signer_wallet_files || 0);
+  const pendingOrders = Number(autopilot.observed.pending_orders || 0);
+  const pendingRefunds = Number(autopilot.observed.pending_refunds || 0);
+  const processingRefunds = Number(autopilot.observed.processing_refunds || 0);
+  const failedRefunds24h = Number(autopilot.observed.failed_refunds_24h || 0);
+  const staleProcessingRefunds15m = Number(autopilot.observed.stale_processing_refunds_15m || 0);
+  const confirmedOrders24h = Number(autopilot.observed.confirmed_orders_24h || 0);
+  const paymentTransactions24h = Number(autopilot.observed.payment_transactions_24h || 0);
+  const completedRefunds24h = Number(autopilot.observed.completed_refunds_24h || 0);
+  const freshPendingWithoutWallet = Number(dbAudit?.fresh_pending_without_wallet || counts.fresh_pending_orders_without_wallet?.count || 0);
+  const checks = [];
+  const add = (name, ok, detail, severity = "blocker") => checks.push({ name, ok: Boolean(ok), detail: String(detail), severity });
+
+  add("final_gate_ready", snapshot?.gate?.status === "ready", `status=${snapshot?.gate?.status || "unknown"}`);
+  add("controlled_real_test_autopilot_ready", autopilot.ok === true, `status=${autopilot.status}, blockers=${autopilot.blockers.length}`);
+  add("certification_technical_ready", certification.technical_ready_for_1_5m === true, `status=${certification.status}, blockers=${certification.blockers.length}`);
+  add("control_room_ready", controlRoom.ok === true, `status=${controlRoom.status}, blockers=${controlRoom.blockers.length}`);
+  add("refund_safety_ready", refundSafety.ok === true, `status=${refundSafety.status}, blockers=${refundSafety.blockers.length}`);
+  add("canary_has_no_rollback_trigger", canary.active_rollback_triggers.length === 0, `active_rollback_triggers=${canary.active_rollback_triggers.length}`);
+  add("production_hardening_not_blocked", hardening.status !== "blocked", `status=${hardening.status}`);
+  add("production_monitoring_not_blocked", monitoring.status !== "blocked", `status=${monitoring.status}`);
+  add("incident_clear_or_watch", incident.status === "clear" || incident.status === "watch", `status=${incident.status}`);
+  add("security_status_ok", security.status === "ok", `status=${security.status}`);
+  add("frontend_contract_ready", frontendContract.status === "ready", `status=${frontendContract.status}`);
+  add("scanner_workers_64_alive", scannerWorkersAlive >= MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS, `alive=${scannerWorkersAlive}, required=${MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS}`);
+  add("scanner_active_shards_64", activeShards >= MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS, `active=${activeShards}, required=${MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS}`);
+  add("scanner_duplicate_shards_zero", duplicateShards.length === 0, `duplicates=${duplicateShards.join(",") || "0"}`);
+  add("wallet_capacity_1_5m_with_buffer", availableWallets >= CAPACITY_TARGET_USERS && walletBuffer >= 0, `available=${availableWallets}, buffer=${walletBuffer}`);
+  add("remote_signer_wallet_files_cover_1_5m", remoteSignerWalletFiles >= CAPACITY_TARGET_USERS, `wallet_files=${remoteSignerWalletFiles}, target=${CAPACITY_TARGET_USERS}`);
+  add("redis_ready", snapshot?.redis?.ok === true && snapshot?.redis_deep?.ok === true, `redis=${Boolean(snapshot?.redis?.ok)}, deep=${Boolean(snapshot?.redis_deep?.ok)}`);
+  add("ton_signer_ready", snapshot?.ton_signer?.ok === true, `ok=${Boolean(snapshot?.ton_signer?.ok)}`);
+  add("fresh_pending_without_wallet_zero_or_repairable", freshPendingWithoutWallet === 0 || availableWallets >= CAPACITY_TARGET_USERS, `fresh_pending_without_wallet=${freshPendingWithoutWallet}, available=${availableWallets}`);
+  add("order_refresh_not_blocked", orderRefresh?.ok === true, `status=${orderRefresh?.status || "unknown"}, blockers=${orderRefresh?.blockers?.length || 0}`);
+  add("assigned_wallet_visible_for_test_user", Boolean(orderRefresh?.assigned_wallet?.wallet?.present), `assigned_wallet_present=${Boolean(orderRefresh?.assigned_wallet?.wallet?.present)}`);
+  add("modal_refresh_action_understood", orderRefresh?.modal_refresh?.required_before_sending_ton !== true, orderRefresh?.modal_refresh?.required_before_sending_ton ? "open deposit modal before sending TON" : "not required", "operator_action");
+  add("pending_orders_small_before_manual_test", pendingOrders <= 100, `pending=${pendingOrders}`, "warning");
+  add("pending_refunds_not_piling_up", pendingRefunds + processingRefunds <= 25, `pending=${pendingRefunds}, processing=${processingRefunds}`, "warning");
+  add("failed_refunds_zero_24h", failedRefunds24h === 0, `failed_refunds_24h=${failedRefunds24h}`);
+  add("stale_processing_refunds_zero", staleProcessingRefunds15m === 0, `stale_processing_refunds_15m=${staleProcessingRefunds15m}`);
+  add("real_deposit_signal_missing_until_tomorrow", confirmedOrders24h > 0 && paymentTransactions24h > 0, `confirmed_orders_24h=${confirmedOrders24h}, payment_transactions_24h=${paymentTransactions24h}`, "expected_until_real_test");
+  add("real_refund_signal_missing_until_tomorrow", completedRefunds24h > 0, `completed_refunds_24h=${completedRefunds24h}`, "expected_until_real_test");
+
+  const blockers = checks.filter((item) => !item.ok && item.severity === "blocker");
+  const operatorActions = checks.filter((item) => !item.ok && item.severity === "operator_action");
+  const expectedUntilRealTest = checks.filter((item) => !item.ok && item.severity === "expected_until_real_test");
+  const warnings = [
+    ...checks.filter((item) => !item.ok && item.severity === "warning"),
+    ...autopilot.warnings.map((item) => ({ ...item, source: "controlled_real_test_autopilot" })),
+    ...refundSafety.warnings.map((item) => ({ ...item, source: "deposit_refund_safety" })),
+    ...controlRoom.warnings.map((item) => ({ ...item, source: "real_test_control_room" })),
+    ...canary.warnings.map((item) => ({ ...item, source: "canary_rollout" }))
+  ];
+  const uniqueWarnings = Array.from(new Map(warnings.map((item) => [`${item.source || "local"}:${item.name}:${item.detail}`, item])).values());
+  const readyForTomorrow = blockers.length === 0;
+  const status = blockers.length
+    ? "blocked"
+    : (operatorActions.length ? "ready_with_operator_action" : (uniqueWarnings.length ? "watch_ready" : "ready"));
+
+  return {
+    status,
+    ok: readyForTomorrow,
+    checked_at: new Date().toISOString(),
+    version: BACKEND_VERSION,
+    target_users: CAPACITY_TARGET_USERS,
+    no_side_effects: true,
+    real_money_sent_by_this_endpoint: false,
+    ready_for_tomorrow_controlled_real_test: readyForTomorrow,
+    safe_to_send_first_controlled_test_deposit_after_operator_action: readyForTomorrow,
+    public_launch_ready_without_real_test: false,
+    ready_for_700k_deposit_users_in_5_days: certification.ready_for_700k_deposit_users_in_5_days,
+    amount_contract: autopilot.amount_contract,
+    observed: {
+      scanner_workers_alive: scannerWorkersAlive,
+      active_shards: activeShards,
+      duplicate_shards: duplicateShards,
+      available_wallets: availableWallets,
+      wallet_buffer: walletBuffer,
+      remote_signer_wallet_files: remoteSignerWalletFiles,
+      pending_orders: pendingOrders,
+      pending_refunds: pendingRefunds,
+      processing_refunds: processingRefunds,
+      fresh_pending_without_wallet: freshPendingWithoutWallet,
+      confirmed_orders_24h: confirmedOrders24h,
+      payment_transactions_24h: paymentTransactions24h,
+      completed_refunds_24h: completedRefunds24h,
+      failed_refunds_24h: failedRefunds24h,
+      stale_processing_refunds_15m: staleProcessingRefunds15m,
+      final_gate_status: snapshot?.gate?.status || "unknown",
+      incident_status: incident.status,
+      security_status: security.status,
+      frontend_contract_status: frontendContract.status,
+      order_refresh_status: orderRefresh?.status || "unknown",
+      assigned_wallet_prefix: orderRefresh?.assigned_wallet?.wallet?.prefix || null,
+      selected_order_status: orderRefresh?.selected_order?.status || null,
+      selected_order_expired: orderRefresh?.selected_order?.expired ?? null
+    },
+    tomorrow_test_sequence: [
+      "Open this endpoint and confirm status is ready or ready_with_operator_action.",
+      "Open the app wallet/deposit modal once; if order_refresh_status is ready_after_modal_refresh, do not send TON before this step.",
+      "Confirm the user sees a TON address and a fresh pending order.",
+      "Send exactly 6.99 TONCOIN from a controlled test wallet.",
+      "Refresh /ops/controlled-real-test-autopilot/summary until phase_1 passes.",
+      "Bind the user's own TON withdraw address and request activation deposit refund once.",
+      "Refresh /ops/controlled-real-test-autopilot/summary until phase_2 passes.",
+      "Only after phase_1 and phase_2 pass, run 10-20 small controlled users."
+    ],
+    hard_stop_conditions: [
+      "Do not send TON if status is blocked.",
+      "Do not send TON if scanner_workers_alive or active_shards drops below 64.",
+      "Do not send TON if duplicate_shards is not empty.",
+      "Do not send TON if assigned wallet is not visible in the app.",
+      "Do not send TON to an expired order screen; reopen the deposit modal first.",
+      "Stop if failed_refunds_24h or stale_processing_refunds_15m becomes greater than zero.",
+      "Stop if remote signer health or wallet file coverage drops below 1.5M."
+    ],
+    dependencies: {
+      controlled_real_test_autopilot: {
+        status: autopilot.status,
+        safe_to_send_first_controlled_test_deposit: autopilot.safe_to_send_first_controlled_test_deposit,
+        blockers_count: autopilot.blockers.length,
+        missing_real_test_signals_count: autopilot.missing_real_test_signals.length,
+        warnings_count: autopilot.warnings.length
+      },
+      production_launch_certification: {
+        status: certification.status,
+        technical_ready_for_1_5m: certification.technical_ready_for_1_5m,
+        real_test_passed: certification.real_test_passed,
+        blockers_count: certification.blockers.length,
+        manual_holds_count: certification.manual_holds.length
+      },
+      real_test_order_refresh: {
+        status: orderRefresh?.status || "unknown",
+        ok: Boolean(orderRefresh?.ok),
+        modal_refresh_required_before_sending_ton: Boolean(orderRefresh?.modal_refresh?.required_before_sending_ton),
+        blockers_count: orderRefresh?.blockers?.length || 0,
+        warnings_count: orderRefresh?.warnings?.length || 0,
+        operator_do_next: orderRefresh?.operator_do_next || null
+      },
+      deposit_refund_safety: {
+        status: refundSafety.status,
+        blockers_count: refundSafety.blockers.length,
+        warnings_count: refundSafety.warnings.length
+      },
+      canary_rollout: {
+        status: canary.status,
+        next_recommended_stage: canary.next_recommended_stage,
+        active_rollback_triggers: canary.active_rollback_triggers.length
+      }
+    },
+    checks,
+    blockers,
+    operator_actions: operatorActions,
+    expected_until_real_test: expectedUntilRealTest,
+    warnings: uniqueWarnings,
+    operator_do_next: blockers.length
+      ? "Hold. Fix blockers before tomorrow's real test."
+      : (operatorActions.length
+        ? "Ready, but complete operator action first: reopen the deposit modal and confirm a fresh pending order before sending TON."
+        : "Ready for tomorrow's controlled real test."),
+    next_step: blockers.length
+      ? "Fix blockers before real-money test."
+      : "Keep monitoring this endpoint until tomorrow; do not public launch until real deposit and refund signals pass."
+  };
+}
+
 async function claimPendingPaymentOrdersForScan(limit, context = getPaymentScannerDefaultContext()) {
   const claimSeconds = Math.max(30, Math.ceil(Number(PAYMENT_SCAN_INTERVAL_MS || 15000) / 1000) * 4);
   const claimLimit = Math.max(1, Math.min(5000, Number(limit || PAYMENT_SCAN_BATCH_SIZE)));
@@ -7254,6 +7436,64 @@ app.get("/ops/controlled-real-test-autopilot/summary", async (req, res) => {
       blockers_count: report.blockers.length,
       missing_real_test_signals_count: report.missing_real_test_signals.length,
       warnings_count: report.warnings.length,
+      operator_do_next: report.operator_do_next,
+      next_step: report.next_step
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/pre-real-test-tomorrow-gate", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || "8188152343";
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
+    ]);
+    const report = buildPreRealTestTomorrowGateReport(snapshot, dbAudit, orderRefresh);
+    res.status(report.status === "blocked" ? 409 : 200).json(report);
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/pre-real-test-tomorrow-gate/summary", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || "8188152343";
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
+    ]);
+    const report = buildPreRealTestTomorrowGateReport(snapshot, dbAudit, orderRefresh);
+    res.status(report.status === "blocked" ? 409 : 200).json({
+      status: report.status,
+      ok: report.ok,
+      checked_at: report.checked_at,
+      version: report.version,
+      ready_for_tomorrow_controlled_real_test: report.ready_for_tomorrow_controlled_real_test,
+      safe_to_send_first_controlled_test_deposit_after_operator_action: report.safe_to_send_first_controlled_test_deposit_after_operator_action,
+      public_launch_ready_without_real_test: report.public_launch_ready_without_real_test,
+      ready_for_700k_deposit_users_in_5_days: report.ready_for_700k_deposit_users_in_5_days,
+      amount_contract: report.amount_contract,
+      observed: report.observed,
+      blockers_count: report.blockers.length,
+      operator_actions_count: report.operator_actions.length,
+      expected_until_real_test_count: report.expected_until_real_test.length,
+      warnings_count: report.warnings.length,
+      dependencies: report.dependencies,
       operator_do_next: report.operator_do_next,
       next_step: report.next_step
     });
