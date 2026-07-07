@@ -3162,7 +3162,7 @@ async function getDepositRefundWithdraw(telegramId) {
     .select("id,status,wallet_address,amount,created_at")
     .eq("telegram_id", String(telegramId))
     .eq("wallet_type", "TON_DEPOSIT_REFUND")
-    .in("status", ["pending", "approved"])
+    .in("status", ["pending", "processing", "approved", "paid", "auto_paid", "submitted", "submitted_unconfirmed"])
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -4131,10 +4131,10 @@ async function buildDepositRehearsalDbAudit(options = {}) {
       .eq("status", "processing")),
     depositAuditCount("withdraws", "deposit_refund_withdraws_active", (query) => query
       .eq("wallet_type", "TON_DEPOSIT_REFUND")
-      .in("status", ["pending", "processing"])),
+      .in("status", ["pending", "processing", "submitted", "submitted_unconfirmed"])),
     depositAuditCount("withdraws", "deposit_refund_withdraws_processing_stale_15m", (query) => query
       .eq("wallet_type", "TON_DEPOSIT_REFUND")
-      .eq("status", "processing")
+      .in("status", ["processing", "submitted", "submitted_unconfirmed"])
       .lt("created_at", staleRefundProcessingBefore)),
     depositAuditCount("withdraws", "deposit_refund_withdraws_completed_24h", (query) => query
       .eq("wallet_type", "TON_DEPOSIT_REFUND")
@@ -7821,7 +7821,7 @@ app.post("/withdraw/request", async (req, res) => {
         .select("id,status")
         .eq("telegram_id", telegramId)
         .eq("wallet_type", "TON_DEPOSIT_REFUND")
-        .in("status", ["pending", "processing", "approved", "paid", "auto_paid"])
+        .in("status", ["pending", "processing", "approved", "paid", "auto_paid", "submitted", "submitted_unconfirmed"])
         .limit(1)
         .maybeSingle();
 
