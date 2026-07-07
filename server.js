@@ -1365,15 +1365,39 @@ async function buildRealTestOrderRefreshOpsReport(telegramId) {
     assignedWallet = relaxedAssignedWallet || null;
   }
   const walletPoolProbe = await buildRealTestWalletPoolProbe(telegram, selectedOrder);
+  const assignedWalletPresent = Boolean(assignedWallet?.address);
+  const modalRefreshCanRepair = Boolean(
+    eligible &&
+    assignedWalletPresent &&
+    !freshPendingWithWallet &&
+    (!selectedOrder || staleSelected)
+  );
 
-  add("assigned_wallet_present", Boolean(assignedWallet?.address), assignedWallet?.address ? `prefix=${assignedWallet.address.slice(0, 8)}` : "missing", eligible ? "blocker" : "warning");
-  add("fresh_pending_order_with_wallet", Boolean(freshPendingWithWallet) || Boolean(user?.withdraw_unlocked), freshPendingWithWallet ? `order=${freshPendingWithWallet.id}` : `selected_status=${selectedOrder?.status || "none"}`, eligible ? "blocker" : "warning");
-  add("selected_order_not_stale", !staleSelected || Boolean(user?.withdraw_unlocked), staleSelected ? `status=${selectedOrder?.status}, expires_at=${selectedOrder?.expires_at}` : "ok", eligible ? "blocker" : "warning");
+  add("assigned_wallet_present", assignedWalletPresent, assignedWallet?.address ? `prefix=${assignedWallet.address.slice(0, 8)}` : "missing", eligible ? "blocker" : "warning");
+  add(
+    "fresh_pending_order_with_wallet",
+    Boolean(freshPendingWithWallet) || Boolean(user?.withdraw_unlocked) || modalRefreshCanRepair,
+    freshPendingWithWallet
+      ? `order=${freshPendingWithWallet.id}`
+      : (modalRefreshCanRepair ? "payment/status or payment/create will refresh on modal open" : `selected_status=${selectedOrder?.status || "none"}`),
+    eligible && !modalRefreshCanRepair ? "blocker" : "warning"
+  );
+  add(
+    "selected_order_not_stale",
+    !staleSelected || Boolean(user?.withdraw_unlocked) || modalRefreshCanRepair,
+    staleSelected
+      ? (modalRefreshCanRepair ? `stale but repairable via modal refresh, expires_at=${selectedOrder?.expires_at}` : `status=${selectedOrder?.status}, expires_at=${selectedOrder?.expires_at}`)
+      : "ok",
+    eligible && !modalRefreshCanRepair ? "blocker" : "warning"
+  );
+  if (modalRefreshCanRepair) {
+    add("operator_must_open_deposit_modal_to_refresh_order", false, "open the wallet/deposit modal before sending TON", "operator_action");
+  }
 
   const blockers = checks.filter((item) => !item.ok && item.severity === "blocker");
   const warnings = checks.filter((item) => !item.ok && item.severity !== "blocker");
   return {
-    status: blockers.length ? "blocked" : (warnings.length ? "watch" : "ready"),
+    status: blockers.length ? "blocked" : (modalRefreshCanRepair ? "ready_after_modal_refresh" : (warnings.length ? "watch" : "ready")),
     ok: blockers.length === 0,
     checked_at: now.toISOString(),
     version: BACKEND_VERSION,
@@ -1397,8 +1421,18 @@ async function buildRealTestOrderRefreshOpsReport(telegramId) {
       last_assigned_at: assignedWallet.last_assigned_at || null,
       wallet_pool_tag: assignedWallet.wallet_pool_tag || null
     } : null,
+    modal_refresh: {
+      required_before_sending_ton: modalRefreshCanRepair,
+      supported: Boolean(eligible && assignedWalletPresent),
+      endpoints: ["/payment/status/:telegram_id", "POST /payment/create"],
+      expected_after_open: "fresh pending order with the user's assigned TON wallet",
+      warning: modalRefreshCanRepair ? "Do not send TON to an expired order screen; open the deposit modal again first." : null
+    },
     wallet_pool_probe: walletPoolProbe,
     expected_after_patch: eligible ? "Opening the deposit modal should return a fresh pending order with the assigned wallet." : "User must reach earning gate or already be unlocked.",
+    operator_do_next: blockers.length
+      ? "Fix blockers before real test."
+      : (modalRefreshCanRepair ? "Open the deposit modal once, confirm a fresh pending order appears, then send the controlled TON deposit." : "Order state is ready for controlled verification."),
     checks,
     blockers,
     warnings
@@ -6942,6 +6976,39 @@ app.get("/ops/real-test-order-refresh", async (req, res) => {
     const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || "8188152343";
     const report = await buildRealTestOrderRefreshOpsReport(telegramId);
     res.status(report.status === "blocked" ? 409 : 200).json(report);
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/real-test-order-refresh/summary", async (req, res) => {
+  try {
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || "8188152343";
+    const report = await buildRealTestOrderRefreshOpsReport(telegramId);
+    res.status(report.status === "blocked" ? 409 : 200).json({
+      status: report.status,
+      ok: report.ok,
+      checked_at: report.checked_at,
+      version: BACKEND_VERSION,
+      telegram_id: report.telegram_id,
+      no_side_effects: report.no_side_effects,
+      user_balance: report.user?.balance ?? null,
+      withdraw_unlocked: report.user?.withdraw_unlocked ?? null,
+      assigned_wallet_present: Boolean(report.assigned_wallet?.wallet?.present),
+      assigned_wallet_prefix: report.assigned_wallet?.wallet?.prefix || null,
+      selected_order_status: report.selected_order?.status || null,
+      selected_order_expired: report.selected_order?.expired ?? null,
+      fresh_pending_order_present: Boolean(report.fresh_pending_order?.id),
+      fresh_pending_order_id: report.fresh_pending_order?.id || null,
+      modal_refresh: report.modal_refresh,
+      blockers_count: report.blockers.length,
+      warnings_count: report.warnings.length,
+      operator_do_next: report.operator_do_next
+    });
   } catch (err) {
     res.status(503).json({
       status: "not_ready",
