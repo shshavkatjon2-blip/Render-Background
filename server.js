@@ -31,10 +31,20 @@ if (missingEnvs.length > 0) {
 }
 
 const app = express();
+app.set("trust proxy", Number(process.env.TRUST_PROXY_HOPS || 1));
 
 const BACKEND_VERSION = "v1.8.2-infra-autopilot-20260628";
+const SECURITY_PATCH_VERSION = "security-frontend-guard-20260703";
+const DEPLOYMENT_GUARD_VERSION = "deployment-guard-20260703";
+const REAL_TEST_ASSIGNMENT_PATCH_VERSION = "real-test-wallet-assignment-v8-20260706";
 const PROCESS_STARTED_AT = new Date();
+const JSON_BODY_LIMIT = String(process.env.JSON_BODY_LIMIT || "128kb");
+const ALLOW_UNLISTED_CORS_ORIGINS = process.env.ALLOW_UNLISTED_CORS_ORIGINS === "true";
+const ADMIN_TOKEN_MIN_LENGTH = Math.max(16, Number(process.env.ADMIN_TOKEN_MIN_LENGTH || 24));
+const SUSPICIOUS_PATH_MAX_LENGTH = Math.max(256, Number(process.env.SUSPICIOUS_PATH_MAX_LENGTH || 2048));
 const REQUEST_SLOW_MS = Math.max(250, Number(process.env.REQUEST_SLOW_MS || 1500));
+const ADMIN_NOTIFICATION_TITLE_MAX = Math.max(16, Math.min(200, Number(process.env.ADMIN_NOTIFICATION_TITLE_MAX || 120)));
+const ADMIN_NOTIFICATION_MESSAGE_MAX = Math.max(64, Math.min(5000, Number(process.env.ADMIN_NOTIFICATION_MESSAGE_MAX || 1200)));
 const SERVER_KEEP_ALIVE_TIMEOUT_MS = Math.max(5000, Number(process.env.SERVER_KEEP_ALIVE_TIMEOUT_MS || 65000));
 const SERVER_HEADERS_TIMEOUT_MS = Math.max(SERVER_KEEP_ALIVE_TIMEOUT_MS + 1000, Number(process.env.SERVER_HEADERS_TIMEOUT_MS || 70000));
 const SERVER_REQUEST_TIMEOUT_MS = Math.max(30000, Number(process.env.SERVER_REQUEST_TIMEOUT_MS || 120000));
@@ -49,6 +59,11 @@ const opsCounters = {
   responses_total: 0,
   errors_total: 0,
   slow_requests_total: 0,
+  rate_limited_total: 0,
+  cors_blocked_total: 0,
+  admin_auth_failures_total: 0,
+  webhook_auth_failures_total: 0,
+  suspicious_requests_total: 0,
   max_duration_ms: 0,
   last_request_at: null,
   last_slow_request_at: null,
@@ -67,6 +82,8 @@ const serverRuntime = {
   last_signal: null
 };
 const WEBAPP_VERSION = "wallet-toncoin-v21-watch-balance-lock-20260625";
+const EXPECTED_FRONTEND_BUILD = "wallet-toncoin-v8-reward-admin-20260621";
+const EXPECTED_FRONTEND_ENTRY = "app-v6.html";
 const CANONICAL_PUBLIC_BACKEND_URL = "https://vidipay-backend.onrender.com";
 const CANONICAL_PUBLIC_APP_URL = "https://shshavkatjon2-blip.github.io/vidipay-fronted";
 const CANONICAL_GAME_URL = `${CANONICAL_PUBLIC_APP_URL}/index.html`;
@@ -99,6 +116,8 @@ const TON_REMOTE_SIGNER_URL = normalizeAddress(readEnvValue("TON_REMOTE_SIGNER_U
 const TON_REMOTE_SIGNER_TOKEN = readEnvValue("TON_REMOTE_SIGNER_TOKEN");
 const TON_REMOTE_SIGNER_ENABLED = Boolean(TON_REMOTE_SIGNER_URL && TON_REMOTE_SIGNER_TOKEN);
 const TON_REMOTE_SIGNER_TIMEOUT_MS = Math.max(3000, Math.min(60000, Number(process.env.TON_REMOTE_SIGNER_TIMEOUT_MS || 25000)));
+const TON_REMOTE_SIGNER_HEALTH_CACHE_MS = Math.max(1000, Math.min(60000, Number(process.env.TON_REMOTE_SIGNER_HEALTH_CACHE_MS || 10000)));
+const TON_REMOTE_SIGNER_STALE_OK_MS = Math.max(TON_REMOTE_SIGNER_HEALTH_CACHE_MS, Math.min(300000, Number(process.env.TON_REMOTE_SIGNER_STALE_OK_MS || 90000)));
 const TON_PAYOUT_GAS_RESERVE = formatTokenAmount(process.env.TON_PAYOUT_GAS_RESERVE || "0.10");
 const TON_PAYOUT_BODY = String(process.env.TON_PAYOUT_BODY || "VidiPay activation payout").trim() || "VidiPay activation payout";
 const WALLET_UNLOCK_REQUIRED_USD = Math.max(0, Number(process.env.WALLET_UNLOCK_REQUIRED_USD || "20"));
@@ -118,6 +137,8 @@ const PAYMENT_SCAN_ORDER_DELAY_MS = Math.max(0, Math.min(5000, Number(process.en
 const PAYMENT_SCAN_MAX_ERRORS_PER_RUN = Math.max(1, Math.min(10000, Number(process.env.PAYMENT_SCAN_MAX_ERRORS_PER_RUN || 500)));
 const PAYMENT_SCANNER_SHARD_COUNT = Math.max(1, Math.min(2048, Number(process.env.PAYMENT_SCANNER_SHARD_COUNT || 1)));
 const PAYMENT_SCANNER_SHARD_INDEX = Math.max(0, Math.min(PAYMENT_SCANNER_SHARD_COUNT - 1, Number(process.env.PAYMENT_SCANNER_SHARD_INDEX || 0)));
+const PAYMENT_SCANNER_LOCAL_SHARD_SPAN = Math.max(1, Math.min(256, Math.floor(Number(process.env.PAYMENT_SCANNER_LOCAL_SHARD_SPAN || process.env.PAYMENT_SCANNER_VIRTUAL_SHARDS_PER_WORKER || 1))));
+const PAYMENT_SCANNER_SHARD_GROUP_INDEX = Math.max(0, Math.floor(Number(process.env.PAYMENT_SCANNER_SHARD_GROUP_INDEX ?? process.env.PAYMENT_SCANNER_SHARD_INDEX ?? 0)));
 const PAYMENT_SCANNER_STALE_AFTER_MS = Math.max(30000, Number(process.env.PAYMENT_SCANNER_STALE_AFTER_MS || PAYMENT_SCAN_INTERVAL_MS * 8));
 const PAYMENT_SCANNER_HEARTBEAT_READ_LIMIT = Math.max(20, Math.min(2048, Number(process.env.PAYMENT_SCANNER_HEARTBEAT_READ_LIMIT || 512)));
 const OPS_SNAPSHOT_CACHE_TTL_MS = Math.max(0, Math.min(30000, Number(process.env.OPS_SNAPSHOT_CACHE_TTL_MS || 2000)));
@@ -130,12 +151,124 @@ const PAYMENT_SCANNER_ENABLED = SCANNER_WORKER_MODE && process.env.PAYMENT_SCANN
 let tonSignerClientPromise = null;
 let tonSignerClientMetaCache = null;
 let tonSignerWalletIndexCache = null;
+let tonRemoteSignerHealthCache = null;
+let tonRemoteSignerHealthPromise = null;
 
 function hasRealEnvValue(name) {
   const raw = String(process.env[name] || "").trim();
   if (!raw) return false;
   if (/^(PASTE|CHANGE|TODO|YOUR_|placeholder)/i.test(raw)) return false;
   return true;
+}
+
+function safeTokenEquals(provided, expected) {
+  const left = String(provided || "");
+  const right = String(expected || "");
+  if (!left || !right) return false;
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+  if (leftBuffer.length !== rightBuffer.length) return false;
+  return crypto.timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function getBearerToken(req) {
+  const authorization = String(req.headers.authorization || "");
+  const match = authorization.match(/^Bearer\s+(.+)$/i);
+  return match ? match[1].trim() : "";
+}
+
+function getAdminTokenFromRequest(req) {
+  return String(req.headers["x-admin-token"] || getBearerToken(req) || req.body?.admin_token || req.query?.admin_token || "");
+}
+
+function markSecurityCounter(kind) {
+  if (kind === "cors") opsCounters.cors_blocked_total += 1;
+  else if (kind === "admin") opsCounters.admin_auth_failures_total += 1;
+  else if (kind === "webhook") opsCounters.webhook_auth_failures_total += 1;
+  else if (kind === "rate") opsCounters.rate_limited_total += 1;
+  else opsCounters.suspicious_requests_total += 1;
+}
+
+function securityLog(kind, req, detail = {}) {
+  markSecurityCounter(kind);
+  const payload = {
+    kind,
+    request_id: req?.requestId || null,
+    method: req?.method,
+    path: req?.path,
+    ip: req ? getClientIp(req) : null,
+    user_agent: String(req?.headers?.["user-agent"] || "").slice(0, 160),
+    ...detail
+  };
+  console.warn("[security]", JSON.stringify(payload));
+}
+
+function maskedValue(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const digest = crypto.createHash("sha256").update(raw).digest("hex").slice(0, 10);
+  return `configured:${digest}`;
+}
+
+function redactedUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  try {
+    const parsed = new URL(raw);
+    return `${parsed.protocol}//${parsed.hostname}${parsed.pathname && parsed.pathname !== "/" ? "/..." : ""}`;
+  } catch {
+    return "configured";
+  }
+}
+
+function redactErrorMessage(message) {
+  return String(message || "")
+    .replace(/https?:\/\/[^\s")]+/gi, "[url]")
+    .replace(/[A-Za-z0-9_-]{32,}/g, "[redacted]")
+    .slice(0, 500);
+}
+
+function isSafeTelegramId(value) {
+  return /^\d{3,32}$/.test(String(value || ""));
+}
+
+function buildSecurityStatus() {
+  return {
+    status: "ok",
+    version: BACKEND_VERSION,
+    security_patch: SECURITY_PATCH_VERSION,
+    deployment_guard: DEPLOYMENT_GUARD_VERSION,
+    expected_frontend_build: EXPECTED_FRONTEND_BUILD,
+    expected_frontend_entry: EXPECTED_FRONTEND_ENTRY,
+    cors: {
+      strict: !ALLOW_UNLISTED_CORS_ORIGINS,
+      allowed_origin_count: ALLOWED_ORIGIN_SET.size,
+      trusted_suffixes: TRUSTED_STATIC_HOST_SUFFIXES
+    },
+    body_limit: JSON_BODY_LIMIT,
+    admin_token: {
+      configured: Boolean(ADMIN_TOKEN),
+      strong_length: Boolean(ADMIN_TOKEN && String(ADMIN_TOKEN).length >= ADMIN_TOKEN_MIN_LENGTH),
+      min_length: ADMIN_TOKEN_MIN_LENGTH
+    },
+    secrets: {
+      supabase_url: hasRealEnvValue("SUPABASE_URL"),
+      service_role: hasRealEnvValue("SUPABASE_SERVICE_ROLE_KEY"),
+      bot_token: hasRealEnvValue("BOT_TOKEN"),
+      telegram_webhook_secret: hasRealEnvValue("TELEGRAM_WEBHOOK_SECRET"),
+      tonapi_key: hasRealEnvValue("TONAPI_KEY"),
+      remote_signer_url: Boolean(TON_REMOTE_SIGNER_URL),
+      remote_signer_token: Boolean(TON_REMOTE_SIGNER_TOKEN),
+      redis_url: Boolean(REDIS_URL)
+    },
+    counters: {
+      cors_blocked_total: opsCounters.cors_blocked_total,
+      admin_auth_failures_total: opsCounters.admin_auth_failures_total,
+      webhook_auth_failures_total: opsCounters.webhook_auth_failures_total,
+      rate_limited_total: opsCounters.rate_limited_total,
+      suspicious_requests_total: opsCounters.suspicious_requests_total
+    }
+  };
 }
 
 function assertScannerWorkerEnv() {
@@ -158,6 +291,16 @@ function assertScannerWorkerEnv() {
   }
   if (!Number.isInteger(PAYMENT_SCANNER_SHARD_INDEX) || PAYMENT_SCANNER_SHARD_INDEX < 0 || PAYMENT_SCANNER_SHARD_INDEX >= PAYMENT_SCANNER_SHARD_COUNT) {
     throw new Error("[scanner] PAYMENT_SCANNER_SHARD_INDEX must be between 0 and PAYMENT_SCANNER_SHARD_COUNT - 1");
+  }
+  if (!Number.isInteger(PAYMENT_SCANNER_LOCAL_SHARD_SPAN) || PAYMENT_SCANNER_LOCAL_SHARD_SPAN < 1) {
+    throw new Error("[scanner] PAYMENT_SCANNER_LOCAL_SHARD_SPAN must be a positive integer");
+  }
+  if (!Number.isInteger(PAYMENT_SCANNER_SHARD_GROUP_INDEX) || PAYMENT_SCANNER_SHARD_GROUP_INDEX < 0) {
+    throw new Error("[scanner] PAYMENT_SCANNER_SHARD_GROUP_INDEX must be zero or a positive integer");
+  }
+  const logicalShardStart = PAYMENT_SCANNER_SHARD_GROUP_INDEX * PAYMENT_SCANNER_LOCAL_SHARD_SPAN;
+  if (PAYMENT_SCANNER_LOCAL_SHARD_SPAN > 1 && logicalShardStart >= PAYMENT_SCANNER_SHARD_COUNT) {
+    throw new Error("[scanner] PAYMENT_SCANNER_SHARD_GROUP_INDEX * PAYMENT_SCANNER_LOCAL_SHARD_SPAN must be lower than PAYMENT_SCANNER_SHARD_COUNT");
   }
 }
 
@@ -209,6 +352,8 @@ const ALLOWED_ORIGINS = [
   toOrigin(CANONICAL_PUBLIC_BACKEND_URL),
   "https://web.telegram.org",
   "https://telegram.org",
+  "https://t.me",
+  "https://telegram.me",
   "http://localhost:10000",
   "http://127.0.0.1:10000",
   "http://localhost:5500",
@@ -235,7 +380,14 @@ function isAllowedCorsOrigin(origin) {
     const { protocol, hostname } = new URL(normalizedOrigin);
     if (isLoopbackHostname(hostname)) return true;
     if (protocol === "https:" && TRUSTED_STATIC_HOST_SUFFIXES.some((suffix) => hostname.endsWith(suffix))) return true;
-    if (protocol === "https:" && (hostname === "telegram.org" || hostname.endsWith(".telegram.org"))) return true;
+    if (protocol === "https:" && (
+      hostname === "telegram.org" ||
+      hostname.endsWith(".telegram.org") ||
+      hostname === "t.me" ||
+      hostname.endsWith(".t.me") ||
+      hostname === "telegram.me" ||
+      hostname.endsWith(".telegram.me")
+    )) return true;
     return false;
   } catch {
     return false;
@@ -285,17 +437,50 @@ app.use((req, res, next) => {
 const corsOptions = {
   origin(origin, callback) {
     if (isAllowedCorsOrigin(origin)) return callback(null, true);
-    console.warn(`[cors] allowing unlisted origin: ${origin}`);
-    return callback(null, true);
+    if (ALLOW_UNLISTED_CORS_ORIGINS) {
+      console.warn(`[cors] allowing unlisted origin by env override: ${origin}`);
+      return callback(null, true);
+    }
+    return callback(null, false);
   },
   methods: ["GET", "POST", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Admin-Token", "X-Request-Id"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Admin-Token", "X-Request-Id", "X-Telegram-Bot-Api-Secret-Token"],
   optionsSuccessStatus: 204
 };
 
+app.use((req, res, next) => {
+  const origin = String(req.headers.origin || "");
+  if (origin && !isAllowedCorsOrigin(origin) && !ALLOW_UNLISTED_CORS_ORIGINS) {
+    securityLog("cors", req, { origin: origin.slice(0, 200) });
+    return res.status(403).json({ error: "CORS origin blocked" });
+  }
+  if (String(req.originalUrl || req.url || "").length > SUSPICIOUS_PATH_MAX_LENGTH) {
+    securityLog("suspicious", req, { reason: "path_too_long" });
+    return res.status(414).json({ error: "Request URI too long" });
+  }
+  return next();
+});
+
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
-app.use(express.json());
+app.use(express.json({
+  limit: JSON_BODY_LIMIT,
+  strict: true,
+  verify(req, res, buffer) {
+    req.rawBody = buffer?.length ? buffer.toString("utf8") : "";
+  }
+}));
+app.use((err, req, res, next) => {
+  if (err?.type === "entity.too.large") {
+    securityLog("suspicious", req, { reason: "json_body_too_large" });
+    return res.status(413).json({ error: "Request body too large" });
+  }
+  if (err instanceof SyntaxError && "body" in err) {
+    securityLog("suspicious", req, { reason: "invalid_json" });
+    return res.status(400).json({ error: "Invalid JSON body" });
+  }
+  return next(err);
+});
 
 if (HAS_LOCAL_FRONTEND) {
   app.use("/mini", express.static(LOCAL_FRONTEND_DIR, {
@@ -368,6 +553,12 @@ const SCALE_AUDIT_COUNT_MODE = ["exact", "planned", "estimated"].includes(String
 const REQUIRE_TON_AUTO_PAYOUT_FOR_1_5M = process.env.REQUIRE_TON_AUTO_PAYOUT_FOR_1_5M !== "false";
 const FINAL_GATE_MIN_SCANNER_WORKERS = Math.max(1, Math.min(2048, Number(process.env.FINAL_GATE_MIN_SCANNER_WORKERS || CAPACITY_3M_MIN_SCANNER_WORKERS)));
 const WALLET_POOL_BUFFER = Math.max(0, Math.min(5000000, Number(process.env.WALLET_POOL_BUFFER || 0)));
+const MARKETING_SPIKE_TARGET_USERS_5D = Math.max(1, Number(process.env.MARKETING_SPIKE_TARGET_USERS_5D || 700000));
+const MARKETING_SPIKE_MIN_SCANNER_WORKERS = Math.max(FINAL_GATE_MIN_SCANNER_WORKERS, Math.min(2048, Number(process.env.MARKETING_SPIKE_MIN_SCANNER_WORKERS || 32)));
+const MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS = Math.max(MARKETING_SPIKE_MIN_SCANNER_WORKERS, Math.min(2048, Number(process.env.MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS || 64)));
+const MARKETING_SPIKE_MIN_ACTIVE_SHARDS = Math.max(1, Math.min(MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS, Number(process.env.MARKETING_SPIKE_MIN_ACTIVE_SHARDS || MARKETING_SPIKE_MIN_SCANNER_WORKERS)));
+const MARKETING_SPIKE_MAX_PENDING_BACKLOG = Math.max(0, Number(process.env.MARKETING_SPIKE_MAX_PENDING_BACKLOG || 5000));
+const MARKETING_SPIKE_GATE_VERSION = "marketing-spike-gate-700k-5d-20260706";
 const rateBuckets = new Map();
 let redisClientPromise = null;
 let redisRateLimitWarned = false;
@@ -529,7 +720,7 @@ async function releaseRedisLock(key, value) {
   }
 }
 
-async function acquireScannerDistributedLock() {
+async function acquireScannerDistributedLock(context = getPaymentScannerDefaultContext()) {
   if (!SCANNER_WORKER_MODE || !REDIS_SCANNER_LOCKS_ENABLED) {
     return { enabled: false, acquired: true, key: null, value: null, message: "scanner Redis lock disabled" };
   }
@@ -547,10 +738,10 @@ async function acquireScannerDistributedLock() {
     "vidipay:scanner:lock",
     PAYMENT_NETWORK,
     PAYMENT_TOKEN,
-    PAYMENT_SCANNER_SHARD_COUNT,
-    PAYMENT_SCANNER_SHARD_INDEX
+    context?.shardCount || PAYMENT_SCANNER_SHARD_COUNT,
+    context?.shardIndex ?? PAYMENT_SCANNER_SHARD_INDEX
   ].join(":");
-  const value = `${PAYMENT_SCANNER_WORKER_ID}:${Date.now()}:${crypto.randomUUID()}`;
+  const value = `${context?.workerId || PAYMENT_SCANNER_WORKER_ID}:${Date.now()}:${crypto.randomUUID()}`;
   try {
     const client = await getRedisClient();
     const result = await client.set(key, value, { NX: true, PX: REDIS_SCANNER_LOCK_TTL_MS });
@@ -604,6 +795,7 @@ function rateLimit(scope, limit, windowMs) {
           const count = await client.incr(redisKey);
           if (count === 1) await client.pExpire(redisKey, windowMs);
           if (count > limit) {
+            markSecurityCounter("rate");
             return res.status(429).json({
               error: "Juda ko'p so'rov yuborildi. Birozdan keyin urinib ko'ring."
             });
@@ -619,6 +811,7 @@ function rateLimit(scope, limit, windowMs) {
     }
 
     if (!applyMemoryRateLimit(key, limit, windowMs, now)) {
+      markSecurityCounter("rate");
       return res.status(429).json({
         error: "Juda ko'p so'rov yuborildi. Birozdan keyin urinib ko'ring."
       });
@@ -786,8 +979,10 @@ function listSetting(settings, key) {
 function adminListParams(req, defaults = {}) {
   const maxLimit = Number(defaults.maxLimit || 500);
   const defaultLimit = Number(defaults.defaultLimit || 200);
-  const limit = Math.max(1, Math.min(maxLimit, Number(req.query.limit || defaultLimit)));
-  const page = Math.max(1, Number(req.query.page || 1));
+  const parsedLimit = Number.parseInt(String(req.query.limit || defaultLimit), 10);
+  const parsedPage = Number.parseInt(String(req.query.page || 1), 10);
+  const limit = Math.max(1, Math.min(maxLimit, Number.isFinite(parsedLimit) ? parsedLimit : defaultLimit));
+  const page = Math.max(1, Math.min(100000, Number.isFinite(parsedPage) ? parsedPage : 1));
   const from = (page - 1) * limit;
   const to = from + limit - 1;
   return { limit, page, from, to };
@@ -859,6 +1054,8 @@ function isUuidLike(value) {
 
 function buildPaymentWalletAssignment(telegramId, orderId, expiresAt, nowIso) {
   const payload = {
+    network: PAYMENT_NETWORK,
+    token: PAYMENT_TOKEN,
     assigned_to_telegram_id: String(telegramId),
     assigned_until: expiresAt,
     cooldown_until: null,
@@ -875,6 +1072,11 @@ function buildPaymentWalletAssignment(telegramId, orderId, expiresAt, nowIso) {
 
 function isUniqueConstraintError(error) {
   return error?.code === "23505" || /unique constraint/i.test(String(error?.message || ""));
+}
+
+function isStatementTimeoutError(error) {
+  const message = String(error?.message || error || "");
+  return error?.code === "57014" || /statement timeout|canceling statement due to statement timeout/i.test(message);
 }
 
 function sameTonAddress(left, right) {
@@ -899,6 +1101,70 @@ function unitsToDecimalString(value, decimals = PAYMENT_TOKEN_DECIMALS) {
   return fraction ? `${whole}.${fraction}` : String(whole);
 }
 
+function safeTonNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function roundTon(value) {
+  const number = safeTonNumber(value);
+  return number === null ? null : Number(number.toFixed(6));
+}
+
+function parseTonBalanceUnits(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  try {
+    if (/^\d+\.\d+$/.test(raw)) return roundTon(raw);
+    if (/^\d+$/.test(raw)) return roundTon(unitsToDecimalString(raw, PAYMENT_TOKEN_DECIMALS));
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function readTonAccountBalanceUnits(payload) {
+  if (!payload || typeof payload !== "object") return null;
+  return (
+    payload.balance ??
+    payload.account?.balance ??
+    payload.wallet?.balance ??
+    payload.raw?.balance ??
+    null
+  );
+}
+
+async function fetchTonWalletLiveBalance(address) {
+  const walletAddress = normalizeAddress(address);
+  if (!isLikelyTonAddress(walletAddress)) {
+    return { ok: false, balance_ton: null, error: "invalid_ton_address" };
+  }
+
+  const headers = { Accept: "application/json" };
+  if (TONAPI_KEY) headers.Authorization = `Bearer ${TONAPI_KEY}`;
+
+  try {
+    const payload = await fetchJsonWithTimeout(
+      `${TONAPI_BASE_URL}/v2/accounts/${encodeURIComponent(walletAddress)}`,
+      { headers, timeoutMs: TONAPI_REQUEST_TIMEOUT_MS, retries: 0 }
+    );
+    const balanceTon = parseTonBalanceUnits(readTonAccountBalanceUnits(payload));
+    return {
+      ok: balanceTon !== null,
+      balance_ton: balanceTon,
+      raw_balance: readTonAccountBalanceUnits(payload) ?? null,
+      error: balanceTon === null ? "balance_not_found" : null
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      balance_ton: null,
+      raw_balance: null,
+      error: redactErrorMessage(err.message || String(err))
+    };
+  }
+}
+
 function normalizePaymentOrder(order) {
   if (!order) return null;
   const amount = order.required_amount ?? order.amount ?? PAYMENT_AMOUNT_TON;
@@ -919,6 +1185,296 @@ function normalizePaymentOrder(order) {
     admin_wallet: wallet,
     wallet_address: wallet
   };
+}
+
+function paymentOrderTime(order) {
+  const time = Date.parse(order?.created_at || order?.updated_at || order?.assigned_at || 0);
+  return Number.isFinite(time) ? time : 0;
+}
+
+function isPaymentOrderExpired(order, now = new Date()) {
+  if (!order?.expires_at) return false;
+  const expiresAt = Date.parse(order.expires_at);
+  return Number.isFinite(expiresAt) && expiresAt <= now.getTime();
+}
+
+function isFreshPendingPaymentOrder(order, now = new Date()) {
+  return order?.status === "pending" && !isPaymentOrderExpired(order, now);
+}
+
+function paymentOrderClientRank(order, now = new Date()) {
+  if (!order) return 99;
+  if (isFreshPendingPaymentOrder(order, now) && order.wallet_address) return 0;
+  if (isFreshPendingPaymentOrder(order, now)) return 1;
+  if (order.status === "confirmed" && order.wallet_address) return 2;
+  if (order.status === "assigned" && order.wallet_address) return 3;
+  if (order.wallet_address) return 4;
+  return 5;
+}
+
+function sortPaymentOrdersForClient(orders, now = new Date()) {
+  return (orders || [])
+    .filter(Boolean)
+    .sort((left, right) => {
+      const rankDiff = paymentOrderClientRank(left, now) - paymentOrderClientRank(right, now);
+      if (rankDiff !== 0) return rankDiff;
+      return paymentOrderTime(right) - paymentOrderTime(left);
+    });
+}
+
+function pickPaymentOrderForClient(orders, now = new Date()) {
+  return sortPaymentOrdersForClient(orders, now)[0] || null;
+}
+
+function redactWalletForOps(value) {
+  const address = normalizeAddress(value);
+  if (!address) return null;
+  return {
+    present: true,
+    prefix: address.slice(0, 8),
+    suffix: address.slice(-6),
+    length: address.length
+  };
+}
+
+function summarizePaymentOrderForOps(order, now = new Date()) {
+  if (!order) return null;
+  return {
+    id: order.id,
+    status: order.status || null,
+    wallet: redactWalletForOps(order.wallet_address),
+    amount: Number(order.required_amount || order.amount || 0),
+    paid_amount: order.paid_amount === null || order.paid_amount === undefined ? null : Number(order.paid_amount),
+    tx_hash_present: Boolean(order.tx_hash),
+    created_at: order.created_at || null,
+    assigned_at: order.assigned_at || null,
+    expires_at: order.expires_at || null,
+    updated_at: order.updated_at || null,
+    fresh_pending: isFreshPendingPaymentOrder(order, now),
+    expired: isPaymentOrderExpired(order, now),
+    client_rank: paymentOrderClientRank(order, now)
+  };
+}
+
+async function buildRealTestOrderRefreshOpsReport(telegramId) {
+  const now = new Date();
+  const telegram = String(telegramId || "").trim();
+  const checks = [];
+  const add = (name, ok, detail, severity = "blocker") => checks.push({ name, ok: Boolean(ok), detail: String(detail), severity });
+
+  if (!isSafeTelegramId(telegram)) {
+    add("telegram_id_valid", false, "invalid telegram_id");
+    return {
+      status: "blocked",
+      ok: false,
+      checked_at: now.toISOString(),
+      telegram_id: telegram,
+      no_side_effects: true,
+      patch_version: REAL_TEST_ASSIGNMENT_PATCH_VERSION,
+      checks,
+      blockers: checks.filter((item) => !item.ok && item.severity === "blocker"),
+      warnings: checks.filter((item) => !item.ok && item.severity !== "blocker")
+    };
+  }
+
+  add("telegram_id_valid", true, telegram, "info");
+
+  const { data: user, error: userError } = await findUserByTelegramId(telegram);
+  if (userError && userError.code !== "PGRST116") throw userError;
+
+  const eligible = Boolean(user && !user.withdraw_unlocked && Number(user.balance || 0) >= WALLET_UNLOCK_REQUIRED_USD);
+  add("user_exists", Boolean(user), user ? "found" : "missing");
+  add("wallet_activation_earning_ready", eligible || Boolean(user?.withdraw_unlocked), `balance=${Number(user?.balance || 0)}, unlocked=${Boolean(user?.withdraw_unlocked)}`);
+
+  const { data: rawOrders, error: ordersError } = await supabase
+    .from("payment_orders")
+    .select("*")
+    .eq("telegram_id", telegram)
+    .eq("network", PAYMENT_NETWORK)
+    .eq("token", PAYMENT_TOKEN)
+    .order("created_at", { ascending: false })
+    .limit(25);
+
+  if (ordersError && ordersError.code !== "42P01") throw ordersError;
+
+  const orders = sortPaymentOrdersForClient((rawOrders || []).map(normalizePaymentOrder), now);
+  const selectedOrder = pickPaymentOrderForClient(orders, now);
+  const freshPendingWithWallet = orders.find((order) => order.wallet_address && isFreshPendingPaymentOrder(order, now)) || null;
+  const staleSelected = Boolean(selectedOrder && selectedOrder.wallet_address && !isFreshPendingPaymentOrder(selectedOrder, now) && selectedOrder.status !== "confirmed");
+
+  const { data: strictAssignedWallet, error: walletError } = await supabase
+    .from("payment_wallets")
+    .select("id,address,assigned_to_telegram_id,assigned_order_id,assigned_until,last_assigned_at,is_active,wallet_pool_tag")
+    .eq("network", PAYMENT_NETWORK)
+    .eq("token", PAYMENT_TOKEN)
+    .eq("assigned_to_telegram_id", telegram)
+    .eq("is_active", true)
+    .order("last_assigned_at", { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (walletError && !["42P01", "42703", "PGRST116"].includes(walletError.code)) throw walletError;
+  let assignedWallet = strictAssignedWallet || null;
+  if (!assignedWallet && (!walletError || ["PGRST116"].includes(walletError.code))) {
+    const { data: relaxedAssignedWallet, error: relaxedWalletError } = await supabase
+      .from("payment_wallets")
+      .select("id,address,assigned_to_telegram_id,assigned_order_id,assigned_until,last_assigned_at,is_active,wallet_pool_tag,network,token")
+      .eq("assigned_to_telegram_id", telegram)
+      .eq("is_active", true)
+      .order("last_assigned_at", { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (relaxedWalletError && !["42P01", "42703", "PGRST116"].includes(relaxedWalletError.code)) throw relaxedWalletError;
+    assignedWallet = relaxedAssignedWallet || null;
+  }
+  const walletPoolProbe = await buildRealTestWalletPoolProbe(telegram, selectedOrder);
+
+  add("assigned_wallet_present", Boolean(assignedWallet?.address), assignedWallet?.address ? `prefix=${assignedWallet.address.slice(0, 8)}` : "missing", eligible ? "blocker" : "warning");
+  add("fresh_pending_order_with_wallet", Boolean(freshPendingWithWallet) || Boolean(user?.withdraw_unlocked), freshPendingWithWallet ? `order=${freshPendingWithWallet.id}` : `selected_status=${selectedOrder?.status || "none"}`, eligible ? "blocker" : "warning");
+  add("selected_order_not_stale", !staleSelected || Boolean(user?.withdraw_unlocked), staleSelected ? `status=${selectedOrder?.status}, expires_at=${selectedOrder?.expires_at}` : "ok", eligible ? "blocker" : "warning");
+
+  const blockers = checks.filter((item) => !item.ok && item.severity === "blocker");
+  const warnings = checks.filter((item) => !item.ok && item.severity !== "blocker");
+  return {
+    status: blockers.length ? "blocked" : (warnings.length ? "watch" : "ready"),
+    ok: blockers.length === 0,
+    checked_at: now.toISOString(),
+    version: BACKEND_VERSION,
+    patch_version: REAL_TEST_ASSIGNMENT_PATCH_VERSION,
+    telegram_id: telegram,
+    no_side_effects: true,
+    user: user ? {
+      telegram_id: String(user.telegram_id),
+      balance: Number(user.balance || 0),
+      withdraw_unlocked: Boolean(user.withdraw_unlocked),
+      is_blocked: Boolean(user.is_blocked)
+    } : null,
+    selected_order: summarizePaymentOrderForOps(selectedOrder, now),
+    fresh_pending_order: summarizePaymentOrderForOps(freshPendingWithWallet, now),
+    latest_orders: orders.slice(0, 10).map((order) => summarizePaymentOrderForOps(order, now)),
+    assigned_wallet: assignedWallet ? {
+      id: assignedWallet.id,
+      wallet: redactWalletForOps(assignedWallet.address),
+      assigned_order_id: assignedWallet.assigned_order_id || null,
+      assigned_until: assignedWallet.assigned_until || null,
+      last_assigned_at: assignedWallet.last_assigned_at || null,
+      wallet_pool_tag: assignedWallet.wallet_pool_tag || null
+    } : null,
+    wallet_pool_probe: walletPoolProbe,
+    expected_after_patch: eligible ? "Opening the deposit modal should return a fresh pending order with the assigned wallet." : "User must reach earning gate or already be unlocked.",
+    checks,
+    blockers,
+    warnings
+  };
+}
+
+async function buildRealTestWalletPoolProbe(telegramId, selectedOrder) {
+  const selectedAddress = normalizeAddress(selectedOrder?.wallet_address || selectedOrder?.admin_wallet);
+  const probe = {
+    selected_wallet_in_pool: null,
+    available_wallet_sample_count: 0,
+    available_wallet_sample: [],
+    errors: []
+  };
+
+  if (selectedAddress && isLikelyTonAddress(selectedAddress)) {
+    const { data: strictData, error } = await supabase
+      .from("payment_wallets")
+      .select("id,address,assigned_to_telegram_id,assigned_until,last_assigned_at,is_active,wallet_pool_tag,network,token")
+      .eq("network", PAYMENT_NETWORK)
+      .eq("token", PAYMENT_TOKEN)
+      .eq("address", selectedAddress)
+      .limit(1)
+      .maybeSingle();
+
+    if (error && !["42P01", "42703", "PGRST116"].includes(error.code)) {
+      probe.errors.push({ check: "selected_wallet_lookup", code: error.code || null, message: error.message || String(error) });
+    }
+
+    let data = strictData || null;
+    if (!data && (!error || ["42703", "PGRST116"].includes(error.code))) {
+      const { data: relaxedData, error: relaxedError } = await supabase
+        .from("payment_wallets")
+        .select("id,address,assigned_to_telegram_id,assigned_until,last_assigned_at,is_active,wallet_pool_tag,network,token")
+        .eq("address", selectedAddress)
+        .limit(1)
+        .maybeSingle();
+
+      if (relaxedError && !["42P01", "42703", "PGRST116"].includes(relaxedError.code)) {
+        probe.errors.push({ check: "selected_wallet_lookup_relaxed", code: relaxedError.code || null, message: relaxedError.message || String(relaxedError) });
+      } else {
+        data = relaxedData || null;
+      }
+    }
+
+    if (data) {
+      probe.selected_wallet_in_pool = {
+        present: true,
+        id: data.id,
+        wallet: redactWalletForOps(data.address),
+        assigned_to_current_user: String(data.assigned_to_telegram_id || "") === String(telegramId),
+        assigned_to_any_user: Boolean(data.assigned_to_telegram_id),
+        assigned_until: data.assigned_until || null,
+        last_assigned_at: data.last_assigned_at || null,
+        is_active: data.is_active !== false,
+        wallet_pool_tag: data.wallet_pool_tag || null,
+        network: data.network || null,
+        token: data.token || null
+      };
+    } else {
+      probe.selected_wallet_in_pool = {
+        present: false,
+        wallet: redactWalletForOps(selectedAddress)
+      };
+    }
+  }
+
+  const { data: strictAvailableSample, error: availableError } = await supabase
+    .from("payment_wallets")
+    .select("id,address,wallet_pool_tag,last_assigned_at,is_active,network,token")
+    .eq("network", PAYMENT_NETWORK)
+    .eq("token", PAYMENT_TOKEN)
+    .eq("is_active", true)
+    .is("assigned_to_telegram_id", null)
+    .order("last_assigned_at", { ascending: true, nullsFirst: true })
+    .limit(5);
+
+  if (availableError && !["42P01", "42703"].includes(availableError.code)) {
+    probe.errors.push({ check: "available_wallet_sample", code: availableError.code || null, message: availableError.message || String(availableError) });
+  }
+
+  let availableSample = strictAvailableSample || [];
+  if (!availableSample.length && (!availableError || ["42703"].includes(availableError.code))) {
+    const { data: relaxedAvailableSample, error: relaxedAvailableError } = await supabase
+      .from("payment_wallets")
+      .select("id,address,wallet_pool_tag,last_assigned_at,is_active,network,token")
+      .eq("is_active", true)
+      .is("assigned_to_telegram_id", null)
+      .order("last_assigned_at", { ascending: true, nullsFirst: true })
+      .limit(5);
+
+    if (relaxedAvailableError && !["42P01", "42703"].includes(relaxedAvailableError.code)) {
+      probe.errors.push({ check: "available_wallet_sample_relaxed", code: relaxedAvailableError.code || null, message: relaxedAvailableError.message || String(relaxedAvailableError) });
+    } else {
+      availableSample = relaxedAvailableSample || [];
+    }
+  }
+
+  {
+    probe.available_wallet_sample_count = Array.isArray(availableSample) ? availableSample.length : 0;
+    probe.available_wallet_sample = (availableSample || []).map((wallet) => ({
+      id: wallet.id,
+      wallet: redactWalletForOps(wallet.address),
+      wallet_pool_tag: wallet.wallet_pool_tag || null,
+      last_assigned_at: wallet.last_assigned_at || null,
+      is_active: wallet.is_active !== false,
+      network: wallet.network || null,
+      token: wallet.token || null
+    }));
+  }
+
+  return probe;
 }
 
 function splitMnemonicWords(value) {
@@ -1028,17 +1584,17 @@ function getTonAutoPayoutStatusSummary() {
     signer_enabled: TON_SIGNER_ENABLED,
     signer_mode: TON_REMOTE_SIGNER_ENABLED ? "remote" : "local",
     remote_signer_configured: TON_REMOTE_SIGNER_ENABLED,
-    remote_signer_url: TON_REMOTE_SIGNER_URL || "",
+    remote_signer_url: redactedUrl(TON_REMOTE_SIGNER_URL),
     signer_ready: TON_SIGNER_ENABLED && (TON_REMOTE_SIGNER_ENABLED || keysDirExists),
     active: TON_AUTO_PAYOUT_ENABLED && TON_SIGNER_ENABLED && (TON_REMOTE_SIGNER_ENABLED || keysDirExists),
     network: TON_SIGNER_NETWORK,
-    keys_dir: TON_SIGNER_KEYS_DIR || "",
+    keys_dir: maskedValue(TON_SIGNER_KEYS_DIR),
     keys_dir_exists: keysDirExists,
     wallet_files: walletFiles.length,
     keys_dir_problem: !TON_SIGNER_KEYS_DIR
       ? "TON_SIGNER_KEYS_DIR is empty"
       : (!keysDirExists ? "TON_SIGNER_KEYS_DIR folder does not exist in this runtime" : (walletFiles.length === 0 ? "TON_SIGNER_KEYS_DIR has no .json signer wallet files" : null)),
-    rpc_endpoint: TON_RPC_ENDPOINT || "auto:orbs-ton-access"
+    rpc_endpoint: TON_RPC_ENDPOINT ? redactedUrl(TON_RPC_ENDPOINT) : "auto:orbs-ton-access"
   };
 }
 
@@ -1081,27 +1637,87 @@ async function checkTonRemoteSignerReadiness() {
     return {
       ok: false,
       configured: false,
-      url: TON_REMOTE_SIGNER_URL || ""
+      url: redactedUrl(TON_REMOTE_SIGNER_URL)
+    };
+  }
+  const now = Date.now();
+  if (
+    tonRemoteSignerHealthCache?.report?.ok &&
+    TON_REMOTE_SIGNER_HEALTH_CACHE_MS > 0 &&
+    now - tonRemoteSignerHealthCache.checkedAt <= TON_REMOTE_SIGNER_HEALTH_CACHE_MS
+  ) {
+    return {
+      ...tonRemoteSignerHealthCache.report,
+      cache: {
+        hit: true,
+        stale_ok: false,
+        age_ms: now - tonRemoteSignerHealthCache.checkedAt,
+        ttl_ms: TON_REMOTE_SIGNER_HEALTH_CACHE_MS
+      }
     };
   }
   try {
-    const payload = await withOpsTimeout(fetchRemoteSignerJson("/healthz"), "remote_signer_healthz");
-    return {
+    if (!tonRemoteSignerHealthPromise) {
+      tonRemoteSignerHealthPromise = withOpsTimeout(fetchRemoteSignerJson("/healthz"), "remote_signer_healthz")
+        .finally(() => {
+          tonRemoteSignerHealthPromise = null;
+        });
+    }
+    const payload = await tonRemoteSignerHealthPromise;
+    const report = {
       ok: Boolean(payload.ok || payload.status === "ok"),
       configured: true,
-      url: TON_REMOTE_SIGNER_URL,
+      url: redactedUrl(TON_REMOTE_SIGNER_URL),
       wallet_files: payload.wallet_files ?? null,
       keys_dir_exists: payload.keys_dir_exists ?? null,
       rpc_ok: payload.rpc_ok ?? null,
-      mode: "remote"
+      mode: "remote",
+      cache: {
+        hit: false,
+        stale_ok: false,
+        ttl_ms: TON_REMOTE_SIGNER_HEALTH_CACHE_MS,
+        stale_ok_ms: TON_REMOTE_SIGNER_STALE_OK_MS
+      }
     };
+    if (report.ok) {
+      tonRemoteSignerHealthCache = {
+        checkedAt: Date.now(),
+        report
+      };
+    }
+    return report;
   } catch (err) {
+    const message = redactErrorMessage(err.message || String(err));
+    if (
+      tonRemoteSignerHealthCache?.report?.ok &&
+      now - tonRemoteSignerHealthCache.checkedAt <= TON_REMOTE_SIGNER_STALE_OK_MS
+    ) {
+      return {
+        ...tonRemoteSignerHealthCache.report,
+        ok: true,
+        stale_ok: true,
+        stale_error: message,
+        cache: {
+          hit: true,
+          stale_ok: true,
+          age_ms: now - tonRemoteSignerHealthCache.checkedAt,
+          ttl_ms: TON_REMOTE_SIGNER_HEALTH_CACHE_MS,
+          stale_ok_ms: TON_REMOTE_SIGNER_STALE_OK_MS
+        }
+      };
+    }
     return {
       ok: false,
       configured: true,
-      url: TON_REMOTE_SIGNER_URL,
-      error: err.message || String(err),
-      mode: "remote"
+      url: redactedUrl(TON_REMOTE_SIGNER_URL),
+      error: message,
+      mode: "remote",
+      cache: {
+        hit: false,
+        stale_ok: false,
+        ttl_ms: TON_REMOTE_SIGNER_HEALTH_CACHE_MS,
+        stale_ok_ms: TON_REMOTE_SIGNER_STALE_OK_MS
+      }
     };
   }
 }
@@ -1119,7 +1735,7 @@ async function buildTonSignerReadinessReport() {
     rpc = {
       ok: true,
       configured: true,
-      endpoint: `${TON_REMOTE_SIGNER_URL}/healthz`,
+      endpoint: "remote_signer:/healthz",
       rpc_source: "remote_signer",
       fallback_used: false,
       api_key_used: false
@@ -1131,7 +1747,7 @@ async function buildTonSignerReadinessReport() {
       rpc = {
         ok: Boolean(masterchain?.last),
         configured: Boolean(TON_RPC_ENDPOINT),
-        endpoint: tonSignerClientMetaCache?.endpoint || TON_RPC_ENDPOINT || "auto:orbs-ton-access",
+        endpoint: TON_RPC_ENDPOINT ? redactedUrl(tonSignerClientMetaCache?.endpoint || TON_RPC_ENDPOINT) : "auto:orbs-ton-access",
         rpc_source: tonSignerClientMetaCache?.source || "unknown",
         fallback_used: Boolean(tonSignerClientMetaCache?.fallback_used),
         api_key_used: Boolean(tonSignerClientMetaCache?.api_key_used),
@@ -1141,9 +1757,9 @@ async function buildTonSignerReadinessReport() {
       rpc = {
         ok: false,
         configured: Boolean(TON_RPC_ENDPOINT),
-        endpoint: TON_RPC_ENDPOINT || "auto:orbs-ton-access",
-        error: err.message || String(err),
-        rpc_errors: Array.isArray(err.rpc_errors) ? err.rpc_errors : undefined
+        endpoint: TON_RPC_ENDPOINT ? redactedUrl(TON_RPC_ENDPOINT) : "auto:orbs-ton-access",
+        error: redactErrorMessage(err.message || String(err)),
+        rpc_errors: Array.isArray(err.rpc_errors) ? err.rpc_errors.map(redactErrorMessage).slice(0, 5) : undefined
       };
     }
   }
@@ -1615,7 +2231,7 @@ async function claimPaymentWallet(orderId, telegramId, expiresAt) {
   const userId = String(telegramId);
 
   const findAssignedWallet = async () => {
-    const { data, error } = await supabase
+    const { data: strictData, error } = await supabase
       .from("payment_wallets")
       .select("*")
       .eq("network", PAYMENT_NETWORK)
@@ -1626,9 +2242,120 @@ async function claimPaymentWallet(orderId, telegramId, expiresAt) {
       .limit(1)
       .maybeSingle();
 
-    if (error) throw error;
+    if (error) {
+      if (isStatementTimeoutError(error)) {
+        console.warn("[payments] assigned wallet lookup timed out; continuing fast claim path");
+        return null;
+      }
+      if (!["42703", "PGRST116"].includes(error.code)) throw error;
+    }
+
+    let data = strictData || null;
+    if (!data) {
+      const { data: relaxedData, error: relaxedError } = await supabase
+        .from("payment_wallets")
+        .select("*")
+        .eq("is_active", true)
+        .eq("assigned_to_telegram_id", userId)
+        .order("last_assigned_at", { ascending: false, nullsFirst: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (relaxedError) {
+        if (isStatementTimeoutError(relaxedError)) {
+          console.warn("[payments] relaxed assigned wallet lookup timed out; continuing fast claim path");
+          return null;
+        }
+        if (!["42703", "PGRST116"].includes(relaxedError.code)) throw relaxedError;
+      }
+      data = relaxedData || null;
+    }
     return data?.address && isLikelyTonAddress(data.address) ? data : null;
   };
+
+  const claimWalletCandidate = async (candidate) => {
+    if (!candidate?.id || !candidate?.address || !isLikelyTonAddress(candidate.address)) return null;
+    const { data: claimed, error: updateError } = await supabase
+      .from("payment_wallets")
+      .update(buildPaymentWalletAssignment(userId, orderId, expiresAt, now))
+      .eq("id", candidate.id)
+      .is("assigned_to_telegram_id", null)
+      .select()
+      .maybeSingle();
+
+    if (updateError) {
+      if (isUniqueConstraintError(updateError)) {
+        const assignedWallet = await findAssignedWallet();
+        if (assignedWallet) return assignedWallet;
+        return null;
+      }
+      if (isStatementTimeoutError(updateError)) {
+        console.warn("[payments] fast wallet claim update timed out; trying next candidate");
+        return null;
+      }
+      throw updateError;
+    }
+
+    return claimed?.address && isLikelyTonAddress(claimed.address) ? claimed : null;
+  };
+
+  const claimAvailableWalletFast = async () => {
+    const windows = [
+      [0, 99],
+      [100, 499],
+      [500, 1999],
+      [2000, 9999],
+      [10000, 49999]
+    ];
+
+    for (const [from, to] of windows) {
+      const { data: candidates, error: candidateError } = await supabase
+        .from("payment_wallets")
+        .select("id,address,network,token,is_active,assigned_to_telegram_id")
+        .order("id", { ascending: true })
+        .range(from, to);
+
+      if (candidateError) {
+        if (isStatementTimeoutError(candidateError)) {
+          console.warn(`[payments] fast wallet window ${from}-${to} timed out; trying next window`);
+          continue;
+        }
+        throw candidateError;
+      }
+
+      const availableCandidates = (candidates || []).filter((candidate) =>
+        candidate?.is_active !== false &&
+        String(candidate?.network || PAYMENT_NETWORK) === PAYMENT_NETWORK &&
+        String(candidate?.token || PAYMENT_TOKEN) === PAYMENT_TOKEN &&
+        !candidate?.assigned_to_telegram_id &&
+        isLikelyTonAddress(candidate?.address)
+      );
+
+      for (const candidate of availableCandidates) {
+        const claimed = await claimWalletCandidate(candidate);
+        if (claimed?.address) return claimed;
+      }
+    }
+
+    return null;
+  };
+
+  const assignedWalletFirst = await findAssignedWallet();
+  if (assignedWalletFirst?.address && isLikelyTonAddress(assignedWalletFirst.address)) {
+    const { error: assignedWalletUpdateError } = await supabase
+      .from("payment_wallets")
+      .update(buildPaymentWalletAssignment(userId, orderId, expiresAt, now))
+      .eq("id", assignedWalletFirst.id);
+    if (assignedWalletUpdateError && !["42P01", "42703"].includes(assignedWalletUpdateError.code)) {
+      throw assignedWalletUpdateError;
+    }
+    return { ...assignedWalletFirst, assigned_order_id: orderId };
+  }
+
+  const preRpcFastWallet = await claimAvailableWalletFast();
+  if (preRpcFastWallet?.address && isLikelyTonAddress(preRpcFastWallet.address)) {
+    return preRpcFastWallet;
+  }
 
   const { data: rpcWallets, error: rpcError } = await supabase.rpc("claim_payment_wallet", {
     p_order_id: orderId,
@@ -1681,7 +2408,13 @@ async function claimPaymentWallet(orderId, telegramId, expiresAt) {
     .order("created_at", { ascending: false })
     .limit(10);
 
-  if (oldOrderError && oldOrderError.code !== "42P01") throw oldOrderError;
+  if (oldOrderError && oldOrderError.code !== "42P01") {
+    if (isStatementTimeoutError(oldOrderError)) {
+      console.warn("[payments] historical payment order lookup timed out; continuing fast wallet claim");
+    } else {
+      throw oldOrderError;
+    }
+  }
 
   for (const oldOrder of oldOrders || []) {
     const historicalAddress = [
@@ -1707,10 +2440,17 @@ async function claimPaymentWallet(orderId, telegramId, expiresAt) {
         const assignedWallet = await findAssignedWallet();
         if (assignedWallet) return assignedWallet;
       }
+      if (isStatementTimeoutError(restoreError)) {
+        console.warn("[payments] historical wallet restore timed out; continuing fast wallet claim");
+        continue;
+      }
       throw restoreError;
     }
     if (restoredWallet?.address && isLikelyTonAddress(restoredWallet.address)) return restoredWallet;
   }
+
+  const fastClaimedWallet = await claimAvailableWalletFast();
+  if (fastClaimedWallet?.address && isLikelyTonAddress(fastClaimedWallet.address)) return fastClaimedWallet;
 
   const { data: wallet, error: findError } = await supabase
     .from("payment_wallets")
@@ -1724,7 +2464,13 @@ async function claimPaymentWallet(orderId, telegramId, expiresAt) {
     .limit(1)
     .maybeSingle();
 
-  if (findError) throw findError;
+  if (findError) {
+    if (isStatementTimeoutError(findError)) {
+      console.warn("[payments] legacy available wallet lookup timed out after fast claim path");
+      return null;
+    }
+    throw findError;
+  }
   if (!wallet) return null;
 
   const { data: claimed, error: updateError } = await supabase
@@ -1746,6 +2492,162 @@ async function claimPaymentWallet(orderId, telegramId, expiresAt) {
   return claimed || null;
 }
 
+async function ensurePaymentOrderWalletAssigned(order, telegramId, expiresAt, now) {
+  const nowIso = now instanceof Date ? now.toISOString() : new Date().toISOString();
+  const orderId = order?.id;
+  const existingAddress = normalizeAddress(order?.wallet_address || order?.admin_wallet);
+
+  if (existingAddress && isLikelyTonAddress(existingAddress)) {
+    const { data: strictAssigned, error: assignError } = await supabase
+      .from("payment_wallets")
+      .update(buildPaymentWalletAssignment(telegramId, orderId, expiresAt, nowIso))
+      .eq("network", PAYMENT_NETWORK)
+      .eq("token", PAYMENT_TOKEN)
+      .eq("is_active", true)
+      .eq("address", existingAddress)
+      .or(`assigned_to_telegram_id.is.null,assigned_to_telegram_id.eq.${String(telegramId)}`)
+      .select()
+      .maybeSingle();
+
+    let assigned = strictAssigned || null;
+    if (assignError) {
+      if (isUniqueConstraintError(assignError)) {
+        const wallet = await claimPaymentWallet(orderId, telegramId, expiresAt);
+        if (wallet?.address && isLikelyTonAddress(wallet.address)) {
+          return updatePaymentOrderWalletAddress(orderId, wallet.address);
+        }
+        return normalizePaymentOrder(order);
+      }
+      if (!["42P01", "42703"].includes(assignError.code)) throw assignError;
+    }
+
+    if (!assigned && (!assignError || ["42703", "PGRST116"].includes(assignError.code))) {
+      const { data: relaxedAssigned, error: relaxedAssignError } = await supabase
+        .from("payment_wallets")
+        .update(buildPaymentWalletAssignment(telegramId, orderId, expiresAt, nowIso))
+        .eq("is_active", true)
+        .eq("address", existingAddress)
+        .or(`assigned_to_telegram_id.is.null,assigned_to_telegram_id.eq.${String(telegramId)}`)
+        .select()
+        .maybeSingle();
+
+      if (relaxedAssignError) {
+        if (isUniqueConstraintError(relaxedAssignError)) {
+          const wallet = await claimPaymentWallet(orderId, telegramId, expiresAt);
+          if (wallet?.address && isLikelyTonAddress(wallet.address)) {
+            return updatePaymentOrderWalletAddress(orderId, wallet.address);
+          }
+          return normalizePaymentOrder(order);
+        }
+        if (!["42P01", "42703"].includes(relaxedAssignError.code)) throw relaxedAssignError;
+      }
+      assigned = relaxedAssigned || null;
+    }
+
+    if (assigned?.address && isLikelyTonAddress(assigned.address)) {
+      return normalizePaymentOrder(order);
+    }
+  }
+
+  const freshWallet = await claimUnassignedPaymentWalletOnly(orderId, telegramId, expiresAt);
+  if (freshWallet?.address && isLikelyTonAddress(freshWallet.address)) {
+    return updatePaymentOrderWalletAddress(orderId, freshWallet.address);
+  }
+
+  const wallet = await claimPaymentWallet(orderId, telegramId, expiresAt);
+  if (!wallet?.address || !isLikelyTonAddress(wallet.address)) {
+    return normalizePaymentOrder(order);
+  }
+
+  return updatePaymentOrderWalletAddress(orderId, wallet.address);
+}
+
+async function claimUnassignedPaymentWalletOnly(orderId, telegramId, expiresAt) {
+  const nowIso = new Date().toISOString();
+  const userId = String(telegramId);
+
+  const claimCandidate = async (candidate) => {
+    if (!candidate?.id || !candidate?.address || !isLikelyTonAddress(candidate.address)) return null;
+    const { data, error } = await supabase
+      .from("payment_wallets")
+      .update(buildPaymentWalletAssignment(userId, orderId, expiresAt, nowIso))
+      .eq("id", candidate.id)
+      .is("assigned_to_telegram_id", null)
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      if (isUniqueConstraintError(error)) return null;
+      if (isStatementTimeoutError(error)) return null;
+      throw error;
+    }
+    return data?.address && isLikelyTonAddress(data.address) ? data : null;
+  };
+
+  const lookupCandidates = async (respectCooldown, strictNetworkToken = true) => {
+    let query = supabase
+      .from("payment_wallets")
+      .select("id,address,network,token")
+      .eq("is_active", true)
+      .is("assigned_to_telegram_id", null);
+
+    if (strictNetworkToken) {
+      query = query
+        .eq("network", PAYMENT_NETWORK)
+        .eq("token", PAYMENT_TOKEN);
+    }
+
+    if (respectCooldown) {
+      query = query.or(`cooldown_until.is.null,cooldown_until.lte.${nowIso}`);
+    }
+
+    const { data, error } = await query
+      .order("last_assigned_at", { ascending: true, nullsFirst: true })
+      .limit(64);
+
+    if (error) {
+      if (isStatementTimeoutError(error)) {
+        console.warn("[payments] strict unassigned wallet lookup timed out; falling back to full claim path");
+        return [];
+      }
+      if (error.code === "42703" && respectCooldown) return lookupCandidates(false);
+      throw error;
+    }
+
+    return (data || []).filter((wallet) => isLikelyTonAddress(wallet?.address));
+  };
+
+  for (const respectCooldown of [true, false]) {
+    let candidates = await lookupCandidates(respectCooldown, true);
+    if (!candidates.length) {
+      candidates = await lookupCandidates(respectCooldown, false);
+    }
+    for (const candidate of candidates) {
+      const claimed = await claimCandidate(candidate);
+      if (claimed?.address) return claimed;
+    }
+  }
+
+  return null;
+}
+
+async function updatePaymentOrderWalletAddress(orderId, walletAddress) {
+  const address = normalizeAddress(walletAddress);
+  const { data, error } = await supabase
+    .from("payment_orders")
+    .update({
+      wallet_address: address,
+      admin_wallet: address,
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", orderId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return normalizePaymentOrder(data);
+}
+
 async function getLatestPendingPaymentOrder(telegramId) {
   const { data, error } = await supabase
     .from("payment_orders")
@@ -1754,6 +2656,25 @@ async function getLatestPendingPaymentOrder(telegramId) {
     .eq("network", PAYMENT_NETWORK)
     .eq("token", PAYMENT_TOKEN)
     .eq("status", "pending")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    if (error.code === "42P01") return null;
+    throw error;
+  }
+
+  return normalizePaymentOrder(data);
+}
+
+async function getLatestPaymentOrderAnyStatus(telegramId) {
+  const { data, error } = await supabase
+    .from("payment_orders")
+    .select("*")
+    .eq("telegram_id", String(telegramId))
+    .eq("network", PAYMENT_NETWORK)
+    .eq("token", PAYMENT_TOKEN)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -1801,14 +2722,52 @@ async function refreshPendingPaymentOrder(order, telegramId, now, expiresAt) {
 
   if (orderError) throw orderError;
 
-  const { error: walletError } = await supabase
-    .from("payment_wallets")
-    .update(buildPaymentWalletAssignment(telegramId, order.id, expiresAt, now.toISOString()))
-    .eq("address", walletAddress);
+  return ensurePaymentOrderWalletAssigned(updatedOrder, telegramId, expiresAt, now);
+}
 
-  if (walletError && !["42P01", "42703"].includes(walletError.code)) throw walletError;
+async function refreshPaymentOrderForNewAttempt(order, telegramId, now, expiresAt) {
+  let walletAddress = normalizeAddress(order.wallet_address);
 
-  return normalizePaymentOrder(updatedOrder);
+  if (!walletAddress) {
+    const wallet = await claimPaymentWallet(order.id, telegramId, expiresAt);
+    if (!wallet) {
+      throw new Error("Bo'sh TONCOIN hamyon topilmadi. Supabase payment_wallets jadvaliga TON hamyonlar qo'shing.");
+    }
+    walletAddress = normalizeAddress(wallet.address);
+  }
+
+  if (!isLikelyTonAddress(walletAddress)) {
+    throw new Error("Noto'g'ri TON hamyon formati topildi. payment_wallets jadvaliga faqat EQ..., UQ... yoki 0:... TON address qo'shing.");
+  }
+
+  const updateBody = {
+    status: "pending",
+    wallet_address: walletAddress,
+    admin_wallet: walletAddress,
+    amount: PAYMENT_AMOUNT_TON,
+    required_amount: PAYMENT_AMOUNT_TON,
+    tx_hash: null,
+    paid_amount: null,
+    paid_at: null,
+    assigned_at: now.toISOString(),
+    expires_at: expiresAt,
+    last_checked_at: null,
+    scanner_claimed_until: null,
+    scanner_claimed_by: null,
+    updated_at: now.toISOString()
+  };
+
+  const { data: updatedOrder, error: orderError } = await supabase
+    .from("payment_orders")
+    .update(updateBody)
+    .eq("id", order.id)
+    .neq("status", "confirmed")
+    .select()
+    .single();
+
+  if (orderError) throw orderError;
+
+  return ensurePaymentOrderWalletAssigned(updatedOrder, telegramId, expiresAt, now);
 }
 
 async function createTonPaymentOrder(telegramId) {
@@ -1816,7 +2775,9 @@ async function createTonPaymentOrder(telegramId) {
   const expiresAt = addMinutes(now, PAYMENT_ORDER_TTL_MINUTES).toISOString();
   const existing = await getExistingPaymentOrder(telegramId);
   if (existing) {
-    if (isLikelyTonAddress(existing.wallet_address)) return existing;
+    if (isLikelyTonAddress(existing.wallet_address)) {
+      return ensurePaymentOrderWalletAssigned(existing, telegramId, expiresAt, now);
+    }
     return refreshPendingPaymentOrder(existing, telegramId, now, expiresAt);
   }
 
@@ -1845,6 +2806,10 @@ async function createTonPaymentOrder(telegramId) {
     if (error.code === "23505") {
       const retryPending = await getLatestPendingPaymentOrder(telegramId);
       if (retryPending) return refreshPendingPaymentOrder(retryPending, telegramId, now, expiresAt);
+      const latestAny = await getLatestPaymentOrderAnyStatus(telegramId);
+      if (latestAny && latestAny.status !== "confirmed") {
+        return refreshPaymentOrderForNewAttempt(latestAny, telegramId, now, expiresAt);
+      }
     }
     throw error;
   }
@@ -1883,7 +2848,7 @@ async function createTonPaymentOrder(telegramId) {
     .single();
 
   if (orderUpdateError) throw orderUpdateError;
-  return normalizePaymentOrder(updatedOrder);
+  return ensurePaymentOrderWalletAssigned(updatedOrder, telegramId, expiresAt, now);
 }
 
 function readTonAccountAddress(value) {
@@ -2218,13 +3183,18 @@ async function scanPaymentOrder(order) {
   return match ? confirmUsdtPayment(order, match) : false;
 }
 
-const paymentScannerState = {
-  running: false,
-  lastRunAt: null,
-  lastError: null,
-  checked: 0,
-  confirmed: 0
-};
+function createPaymentScannerState() {
+  return {
+    running: false,
+    lastRunAt: null,
+    lastError: null,
+    checked: 0,
+    confirmed: 0
+  };
+}
+
+const paymentScannerState = createPaymentScannerState();
+const paymentScannerStateByWorkerId = new Map();
 const opsSnapshotCache = {
   value: null,
   expiresAt: 0,
@@ -2241,6 +3211,79 @@ const PAYMENT_SCANNER_WORKER_ID = String(process.env.PAYMENT_SCANNER_WORKER_ID |
 const PAYMENT_SCANNER_HEARTBEAT_TABLE = "payment_scanner_heartbeats";
 let scannerHeartbeatWarned = false;
 let scannerClaimRpcWarned = false;
+
+function buildPaymentScannerShardContexts() {
+  const shardCount = Math.max(1, PAYMENT_SCANNER_SHARD_COUNT);
+  const localSpan = Math.max(1, Math.min(shardCount, PAYMENT_SCANNER_LOCAL_SHARD_SPAN));
+  if (localSpan <= 1) {
+    return [{
+      workerId: PAYMENT_SCANNER_WORKER_ID,
+      baseWorkerId: PAYMENT_SCANNER_WORKER_ID,
+      shardCount,
+      shardIndex: PAYMENT_SCANNER_SHARD_INDEX,
+      shardGroupIndex: PAYMENT_SCANNER_SHARD_GROUP_INDEX,
+      localShardSpan: localSpan,
+      logical: false
+    }];
+  }
+
+  const start = PAYMENT_SCANNER_SHARD_GROUP_INDEX * localSpan;
+  const end = Math.min(shardCount, start + localSpan);
+  const contexts = [];
+  for (let shardIndex = start; shardIndex < end; shardIndex += 1) {
+    contexts.push({
+      workerId: `${PAYMENT_SCANNER_WORKER_ID}-s${String(shardIndex).padStart(3, "0")}`,
+      baseWorkerId: PAYMENT_SCANNER_WORKER_ID,
+      shardCount,
+      shardIndex,
+      shardGroupIndex: PAYMENT_SCANNER_SHARD_GROUP_INDEX,
+      localShardSpan: localSpan,
+      logical: true
+    });
+  }
+  return contexts;
+}
+
+function getPaymentScannerDefaultContext() {
+  return buildPaymentScannerShardContexts()[0] || {
+    workerId: PAYMENT_SCANNER_WORKER_ID,
+    baseWorkerId: PAYMENT_SCANNER_WORKER_ID,
+    shardCount: Math.max(1, PAYMENT_SCANNER_SHARD_COUNT),
+    shardIndex: PAYMENT_SCANNER_SHARD_INDEX,
+    shardGroupIndex: PAYMENT_SCANNER_SHARD_GROUP_INDEX,
+    localShardSpan: 1,
+    logical: false
+  };
+}
+
+function getPaymentScannerState(context = getPaymentScannerDefaultContext()) {
+  const workerId = context?.workerId || PAYMENT_SCANNER_WORKER_ID;
+  if (workerId === PAYMENT_SCANNER_WORKER_ID) return paymentScannerState;
+  if (!paymentScannerStateByWorkerId.has(workerId)) {
+    paymentScannerStateByWorkerId.set(workerId, createPaymentScannerState());
+  }
+  return paymentScannerStateByWorkerId.get(workerId);
+}
+
+function buildPaymentScannerAggregateState() {
+  const states = [paymentScannerState, ...paymentScannerStateByWorkerId.values()];
+  const latestRunAt = states
+    .map((state) => state.lastRunAt)
+    .filter(Boolean)
+    .sort()
+    .at(-1) || null;
+  const latestError = [...states]
+    .reverse()
+    .map((state) => state.lastError)
+    .find(Boolean) || null;
+  return {
+    running: states.some((state) => state.running),
+    lastRunAt: latestRunAt,
+    lastError: latestError,
+    checked: states.reduce((sum, state) => sum + Number(state.checked || 0), 0),
+    confirmed: states.reduce((sum, state) => sum + Number(state.confirmed || 0), 0)
+  };
+}
 
 function cloneJsonSafe(value) {
   if (value === undefined || value === null) return value;
@@ -2302,28 +3345,28 @@ async function upsertPaymentScannerHeartbeat(payload) {
   return retry;
 }
 
-async function recordPaymentScannerHeartbeat() {
+async function recordPaymentScannerHeartbeat(context = getPaymentScannerDefaultContext(), state = getPaymentScannerState(context)) {
   const now = new Date().toISOString();
   const payload = {
-    worker_id: PAYMENT_SCANNER_WORKER_ID,
+    worker_id: context?.workerId || PAYMENT_SCANNER_WORKER_ID,
     worker_mode: SCANNER_WORKER_MODE ? "scanner" : "api",
     network: PAYMENT_NETWORK,
     token: PAYMENT_TOKEN,
     scanner_enabled: PAYMENT_SCANNER_ENABLED,
-    running: Boolean(paymentScannerState.running),
+    running: Boolean(state.running),
     last_seen_at: now,
-    last_run_at: paymentScannerState.lastRunAt,
-    last_error: paymentScannerState.lastError,
-    checked_total: Number(paymentScannerState.checked || 0),
-    confirmed_total: Number(paymentScannerState.confirmed || 0),
+    last_run_at: state.lastRunAt,
+    last_error: state.lastError,
+    checked_total: Number(state.checked || 0),
+    confirmed_total: Number(state.confirmed || 0),
     scan_interval_ms: Number(PAYMENT_SCAN_INTERVAL_MS || 0),
     scan_batch_size: Number(PAYMENT_SCAN_BATCH_SIZE || 0),
     scan_concurrency: Number(PAYMENT_SCAN_CONCURRENCY || 0),
     scan_jitter_ms: Number(PAYMENT_SCAN_JITTER_MS || 0),
     scan_order_delay_ms: Number(PAYMENT_SCAN_ORDER_DELAY_MS || 0),
     scan_max_errors_per_run: Number(PAYMENT_SCAN_MAX_ERRORS_PER_RUN || 0),
-    shard_count: Number(PAYMENT_SCANNER_SHARD_COUNT || 1),
-    shard_index: Number(PAYMENT_SCANNER_SHARD_INDEX || 0),
+    shard_count: Number(context?.shardCount || PAYMENT_SCANNER_SHARD_COUNT || 1),
+    shard_index: Number(context?.shardIndex ?? PAYMENT_SCANNER_SHARD_INDEX ?? 0),
     updated_at: now
   };
 
@@ -2379,9 +3422,10 @@ function buildPaymentScannerStatus(heartbeatSnapshot = { available: false, error
   const heartbeatStale = heartbeatSnapshot.available
     ? (!latestSeenMs || Date.now() - latestSeenMs > staleAfterMs)
     : null;
+  const shardContexts = buildPaymentScannerShardContexts();
 
   return {
-    ...paymentScannerState,
+    ...buildPaymentScannerAggregateState(),
     worker_id: PAYMENT_SCANNER_WORKER_ID,
     worker_mode: SCANNER_WORKER_MODE ? "scanner" : "api",
     enabled: PAYMENT_SCANNER_ENABLED,
@@ -2398,6 +3442,14 @@ function buildPaymentScannerStatus(heartbeatSnapshot = { available: false, error
     heartbeat_read_limit: PAYMENT_SCANNER_HEARTBEAT_READ_LIMIT,
     shard_count: PAYMENT_SCANNER_SHARD_COUNT,
     shard_index: PAYMENT_SCANNER_SHARD_INDEX,
+    shard_group_index: PAYMENT_SCANNER_SHARD_GROUP_INDEX,
+    local_shard_span: PAYMENT_SCANNER_LOCAL_SHARD_SPAN,
+    local_shard_contexts: shardContexts.length,
+    logical_shards: shardContexts.map((context) => ({
+      worker_id: context.workerId,
+      shard_count: context.shardCount,
+      shard_index: context.shardIndex
+    })),
     latest_heartbeat: latest,
     latest_scanner_heartbeat: latestScanner,
     heartbeats: rows
@@ -2480,6 +3532,7 @@ function buildProcessMetrics() {
   const memory = process.memoryUsage();
   return {
     version: BACKEND_VERSION,
+    security_patch: SECURITY_PATCH_VERSION,
     worker_mode: SCANNER_WORKER_MODE ? "scanner" : "api",
     booted_at: PROCESS_STARTED_AT.toISOString(),
     uptime_seconds: Math.floor(process.uptime()),
@@ -2551,6 +3604,88 @@ function buildEnvPresenceSummary() {
     "REDIS_URL"
   ];
   return Object.fromEntries(names.map((name) => [name, hasRealEnvValue(name)]));
+}
+
+function parseUrlSafe(value) {
+  try {
+    return new URL(String(value || ""));
+  } catch {
+    return null;
+  }
+}
+
+function buildFrontendDeploymentContract() {
+  const publicApp = parseUrlSafe(PUBLIC_APP_URL);
+  const gameUrl = parseUrlSafe(GAME_URL);
+  const expectedGameUrl = `${PUBLIC_APP_URL.replace(/\/$/, "")}/${EXPECTED_FRONTEND_ENTRY}`;
+  const expectedGame = parseUrlSafe(expectedGameUrl);
+  const publicAppOrigin = publicApp ? publicApp.origin : "";
+  const gameOrigin = gameUrl ? gameUrl.origin : "";
+  const gamePath = gameUrl ? (gameUrl.pathname || "/") : "";
+  const acceptedGameEntries = new Set([
+    "/",
+    "",
+    "/index.html",
+    `/${EXPECTED_FRONTEND_ENTRY}`
+  ]);
+  const isAcceptedGameEntry = Boolean(gameUrl && (
+    acceptedGameEntries.has(gamePath) ||
+    gamePath.endsWith("/index.html") ||
+    gamePath.endsWith(`/${EXPECTED_FRONTEND_ENTRY}`)
+  ));
+  const checks = [
+    {
+      name: "public_app_url_https",
+      ok: Boolean(publicApp && publicApp.protocol === "https:"),
+      detail: PUBLIC_APP_URL
+    },
+    {
+      name: "game_url_https",
+      ok: Boolean(gameUrl && gameUrl.protocol === "https:"),
+      detail: GAME_URL
+    },
+    {
+      name: "same_origin_frontend",
+      ok: Boolean(publicAppOrigin && gameOrigin && publicAppOrigin === gameOrigin),
+      detail: `public_app_origin=${publicAppOrigin || "-"}, game_origin=${gameOrigin || "-"}`
+    },
+    {
+      name: "cors_allows_public_app",
+      ok: Boolean(publicAppOrigin && isAllowedCorsOrigin(publicAppOrigin)),
+      detail: publicAppOrigin || "-"
+    },
+    {
+      name: "cors_allows_game_origin",
+      ok: Boolean(gameOrigin && isAllowedCorsOrigin(gameOrigin)),
+      detail: gameOrigin || "-"
+    },
+    {
+      name: "game_entry_current_or_index",
+      ok: isAcceptedGameEntry,
+      detail: gameUrl ? gamePath : "-"
+    }
+  ];
+  const blockers = checks.filter((item) => !item.ok);
+  const warnings = [];
+  if (gameUrl && expectedGame && !isAcceptedGameEntry) {
+    warnings.push(`GAME_URL currently points to ${gamePath || "/"}. Accepted entries are /index.html, /, and /${EXPECTED_FRONTEND_ENTRY}.`);
+  }
+
+  return {
+    status: blockers.length ? "blocked" : "ready",
+    version: BACKEND_VERSION,
+    deployment_guard: DEPLOYMENT_GUARD_VERSION,
+    webapp_version: WEBAPP_VERSION,
+    expected_frontend_build: EXPECTED_FRONTEND_BUILD,
+    expected_frontend_entry: EXPECTED_FRONTEND_ENTRY,
+    public_app_url: PUBLIC_APP_URL,
+    game_url: GAME_URL,
+    recommended_game_url: expectedGameUrl,
+    accepted_game_entries: Array.from(acceptedGameEntries).filter(Boolean),
+    checks,
+    blockers,
+    warnings
+  };
 }
 
 function buildDeploymentShape(scanner) {
@@ -2842,6 +3977,87 @@ function buildWalletImportPlan(walletCapacity) {
       "Run sql/FINAL_OPERATIONAL_GATE_1_5M.sql.",
       "Open /ops/wallet-capacity and /ops/final-gate."
     ]
+  };
+}
+
+async function buildDepositRehearsalDbAudit(options = {}) {
+  const now = new Date();
+  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+  const freshWindowMinutes = Math.max(PAYMENT_ORDER_TTL_MINUTES + PAYMENT_LATE_GRACE_MINUTES, 45);
+  const freshWindowIso = new Date(now.getTime() - freshWindowMinutes * 60 * 1000).toISOString();
+  const counts = await Promise.all([
+    safeSupabaseCount("payment_orders", "pending_orders_total", (query) => query
+      .eq("status", "pending")
+      .eq("network", PAYMENT_NETWORK)
+      .eq("token", PAYMENT_TOKEN)),
+    safeSupabaseCount("payment_orders", "pending_orders_with_wallet", (query) => query
+      .eq("status", "pending")
+      .eq("network", PAYMENT_NETWORK)
+      .eq("token", PAYMENT_TOKEN)
+      .not("wallet_address", "is", null)),
+    safeSupabaseCount("payment_orders", "pending_orders_without_wallet", (query) => query
+      .eq("status", "pending")
+      .eq("network", PAYMENT_NETWORK)
+      .eq("token", PAYMENT_TOKEN)
+      .is("wallet_address", null)),
+    safeSupabaseCount("payment_orders", "fresh_pending_orders_without_wallet", (query) => query
+      .eq("status", "pending")
+      .eq("network", PAYMENT_NETWORK)
+      .eq("token", PAYMENT_TOKEN)
+      .is("wallet_address", null)
+      .gte("created_at", freshWindowIso)),
+    safeSupabaseCount("payment_orders", "confirmed_orders_24h", (query) => query
+      .eq("status", "confirmed")
+      .eq("network", PAYMENT_NETWORK)
+      .eq("token", PAYMENT_TOKEN)
+      .gte("paid_at", oneDayAgo)),
+    safeSupabaseCount("payment_transactions", "payment_transactions_24h", (query) => query
+      .eq("network", PAYMENT_NETWORK)
+      .eq("token", PAYMENT_TOKEN)
+      .gte("created_at", oneDayAgo)),
+    safeSupabaseCount("withdraws", "deposit_refund_withdraws_pending", (query) => query
+      .eq("wallet_type", "TON_DEPOSIT_REFUND")
+      .eq("status", "pending")),
+    safeSupabaseCount("withdraws", "deposit_refund_withdraws_processing", (query) => query
+      .eq("wallet_type", "TON_DEPOSIT_REFUND")
+      .eq("status", "processing")),
+    safeSupabaseCount("withdraws", "deposit_refund_withdraws_active", (query) => query
+      .eq("wallet_type", "TON_DEPOSIT_REFUND")
+      .in("status", ["pending", "processing"])),
+    safeSupabaseCount("withdraws", "deposit_refund_withdraws_completed_24h", (query) => query
+      .eq("wallet_type", "TON_DEPOSIT_REFUND")
+      .in("status", ["approved", "paid", "auto_paid"])
+      .gte("created_at", oneDayAgo)),
+    safeSupabaseCount("withdraws", "deposit_refund_withdraws_failed_24h", (query) => query
+      .eq("wallet_type", "TON_DEPOSIT_REFUND")
+      .in("status", ["rejected", "failed"])
+      .gte("created_at", oneDayAgo))
+  ]);
+  const byLabel = compactCountMap(counts);
+  const pendingTotal = Number(byLabel.pending_orders_total?.count || 0);
+  const pendingWithoutWallet = Number(byLabel.pending_orders_without_wallet?.count || 0);
+  const freshPendingWithoutWallet = Number(byLabel.fresh_pending_orders_without_wallet?.count || 0);
+  const countsReadable = counts.every((item) => item.ok);
+  const warnings = [];
+  if (pendingTotal > 0) {
+    warnings.push(`${pendingTotal} pending payment order(s) exist; scanner should clear them automatically if funds arrive.`);
+  }
+  if (pendingWithoutWallet > freshPendingWithoutWallet) {
+    warnings.push(`${pendingWithoutWallet - freshPendingWithoutWallet} older pending order(s) have no wallet; they are not blocking new real-test readiness.`);
+  }
+  return {
+    ok: countsReadable && freshPendingWithoutWallet === 0,
+    checked_at: now.toISOString(),
+    lookback_hours: 24,
+    fresh_window_minutes: freshWindowMinutes,
+    count_mode: SCALE_AUDIT_COUNT_MODE,
+    timeout_ms: OPS_DB_AUDIT_TIMEOUT_MS,
+    counts: byLabel,
+    counts_readable: countsReadable,
+    pending_total: pendingTotal,
+    pending_without_wallet: pendingWithoutWallet,
+    fresh_pending_without_wallet: freshPendingWithoutWallet,
+    warnings
   };
 }
 
@@ -3325,7 +4541,7 @@ function buildFinalLaunchGate({ scanner, shards, walletCapacity, backlog, redis,
     {
       name: "ton_signer_ready",
       ok: Boolean(tonSigner?.ok),
-      detail: tonSigner?.rpc?.error || `wallet_files=${tonSigner?.signer?.wallet_files ?? "unknown"}`
+      detail: tonSigner?.rpc?.error || tonSigner?.remote_signer?.error || `remote_wallet_files=${tonSigner?.remote_signer?.wallet_files ?? "unknown"}, stale_ok=${Boolean(tonSigner?.remote_signer?.stale_ok)}`
     },
     {
       name: "scanner_backlog_audit_ok",
@@ -3353,17 +4569,943 @@ function buildFinalLaunchGate({ scanner, shards, walletCapacity, backlog, redis,
   };
 }
 
-async function claimPendingPaymentOrdersForScan(limit) {
+function buildMarketingSpikeGate(snapshot) {
+  const scannerWorkersAlive = Number(snapshot?.scanner?.scanner_workers_alive || 0);
+  const activeShards = Number(snapshot?.shards?.active_shards || 0);
+  const duplicateShards = Array.isArray(snapshot?.shards?.duplicate_shards) ? snapshot.shards.duplicate_shards : [];
+  const availableWallets = Number(snapshot?.wallet_capacity?.counts?.available_wallets?.count ?? -1);
+  const pendingOrders = Number(snapshot?.backlog?.counts?.pending_orders?.count ?? 0);
+  const remoteSignerWalletFiles = Number(snapshot?.ton_signer?.remote_signer?.wallet_files || 0);
+  const finalGateReady = snapshot?.gate?.status === "ready" && Array.isArray(snapshot?.gate?.blockers) && snapshot.gate.blockers.length === 0;
+  const security = buildSecurityStatus();
+  const required = [
+    {
+      name: "baseline_final_gate_ready",
+      ok: finalGateReady,
+      detail: `status=${snapshot?.gate?.status || "unknown"}, blockers=${Array.isArray(snapshot?.gate?.blockers) ? snapshot.gate.blockers.length : "unknown"}`
+    },
+    {
+      name: "scanner_workers_min_32_for_700k_5d",
+      ok: scannerWorkersAlive >= MARKETING_SPIKE_MIN_SCANNER_WORKERS,
+      detail: `alive=${scannerWorkersAlive}, required=${MARKETING_SPIKE_MIN_SCANNER_WORKERS}, recommended=${MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS}`
+    },
+    {
+      name: "scanner_active_shards_minimum",
+      ok: activeShards >= MARKETING_SPIKE_MIN_ACTIVE_SHARDS,
+      detail: `active=${activeShards}, required=${MARKETING_SPIKE_MIN_ACTIVE_SHARDS}`
+    },
+    {
+      name: "scanner_duplicate_shards_zero",
+      ok: duplicateShards.length === 0,
+      detail: `duplicates=${duplicateShards.length}`
+    },
+    {
+      name: "redis_deep_ready",
+      ok: Boolean(snapshot?.redis?.ok && snapshot?.redis_deep?.ok),
+      detail: `redis=${Boolean(snapshot?.redis?.ok)}, deep=${Boolean(snapshot?.redis_deep?.ok)}`
+    },
+    {
+      name: "wallet_capacity_covers_target",
+      ok: availableWallets >= CAPACITY_TARGET_USERS,
+      detail: `available=${availableWallets}, target=${CAPACITY_TARGET_USERS}, marketing_spike_target_5d=${MARKETING_SPIKE_TARGET_USERS_5D}`
+    },
+    {
+      name: "remote_signer_covers_wallet_pool",
+      ok: remoteSignerWalletFiles >= CAPACITY_TARGET_USERS,
+      detail: `wallet_files=${remoteSignerWalletFiles}, target=${CAPACITY_TARGET_USERS}`
+    },
+    {
+      name: "ton_signer_ready",
+      ok: Boolean(snapshot?.ton_signer?.ok),
+      detail: snapshot?.ton_signer?.rpc?.error || snapshot?.ton_signer?.remote_signer?.error || `ok=${Boolean(snapshot?.ton_signer?.ok)}`
+    },
+    {
+      name: "payment_backlog_under_spike_limit",
+      ok: pendingOrders <= MARKETING_SPIKE_MAX_PENDING_BACKLOG,
+      detail: `pending=${pendingOrders}, max=${MARKETING_SPIKE_MAX_PENDING_BACKLOG}`
+    },
+    {
+      name: "security_status_ok",
+      ok: security.status === "ok",
+      detail: `status=${security.status}`
+    }
+  ];
+  const warnings = [
+    {
+      name: "scanner_workers_recommended_64",
+      ok: scannerWorkersAlive >= MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS,
+      detail: `alive=${scannerWorkersAlive}, recommended=${MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS}`
+    },
+    {
+      name: "frontend_instant_ui_contract",
+      ok: buildFrontendDeploymentContract().status === "ready",
+      detail: `frontend_contract=${buildFrontendDeploymentContract().status}`
+    }
+  ];
+  const blockers = required.filter((item) => !item.ok);
+  const warningItems = warnings.filter((item) => !item.ok);
+
+  return {
+    status: blockers.length ? "blocked" : (warningItems.length ? "warning" : "ready"),
+    ok: blockers.length === 0,
+    version: BACKEND_VERSION,
+    gate_version: MARKETING_SPIKE_GATE_VERSION,
+    generated_at: new Date().toISOString(),
+    target: {
+      baseline_users: CAPACITY_TARGET_USERS,
+      deposit_spike_users_5d: MARKETING_SPIKE_TARGET_USERS_5D,
+      min_scanner_workers: MARKETING_SPIKE_MIN_SCANNER_WORKERS,
+      recommended_scanner_workers: MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS,
+      min_active_shards: MARKETING_SPIKE_MIN_ACTIVE_SHARDS,
+      max_pending_backlog: MARKETING_SPIKE_MAX_PENDING_BACKLOG
+    },
+    observed: {
+      scanner_workers_alive: scannerWorkersAlive,
+      active_shards: activeShards,
+      duplicate_shards: duplicateShards,
+      available_wallets: availableWallets,
+      remote_signer_wallet_files: remoteSignerWalletFiles,
+      pending_orders: pendingOrders,
+      final_gate_status: snapshot?.gate?.status || "unknown"
+    },
+    required,
+    warnings,
+    blockers,
+    warning_items: warningItems,
+    ready_for_700k_deposit_users_in_5_days: blockers.length === 0,
+    ready_for_1m_peak_with_possible_slowdown: blockers.length === 0 && scannerWorkersAlive >= MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS
+  };
+}
+
+function buildProductionSlaReport(snapshot) {
+  const security = buildSecurityStatus();
+  const frontendContract = buildFrontendDeploymentContract();
+  const metrics = buildProcessMetrics();
+  const scannerWorkersAlive = Number(snapshot?.scanner?.scanner_workers_alive || 0);
+  const activeShards = Number(snapshot?.shards?.active_shards || 0);
+  const duplicateShards = Array.isArray(snapshot?.shards?.duplicate_shards) ? snapshot.shards.duplicate_shards : [];
+  const availableWallets = Number(snapshot?.wallet_capacity?.counts?.available_wallets?.count ?? 0);
+  const assignedWallets = Number(snapshot?.wallet_capacity?.counts?.assigned_wallets?.count ?? 0);
+  const walletGap = availableWallets - CAPACITY_TARGET_USERS;
+  const latestSeen = snapshot?.scanner?.latest_seen_at ? Date.parse(snapshot.scanner.latest_seen_at) : null;
+  const scannerLagMs = Number.isFinite(latestSeen) ? Math.max(0, Date.now() - latestSeen) : null;
+  const finalGateReady = snapshot?.gate?.status === "ready" && Array.isArray(snapshot?.gate?.blockers) && snapshot.gate.blockers.length === 0;
+  const checks = [
+    {
+      name: "final_gate_ready",
+      ok: finalGateReady,
+      severity: "blocker",
+      detail: `status=${snapshot?.gate?.status || "unknown"}, blockers=${Array.isArray(snapshot?.gate?.blockers) ? snapshot.gate.blockers.length : "unknown"}`
+    },
+    {
+      name: "scanner_workers_alive_min_4",
+      ok: scannerWorkersAlive >= FINAL_GATE_MIN_SCANNER_WORKERS,
+      severity: "blocker",
+      detail: `alive=${scannerWorkersAlive}, required=${FINAL_GATE_MIN_SCANNER_WORKERS}`
+    },
+    {
+      name: "scanner_heartbeat_fresh",
+      ok: snapshot?.scanner?.heartbeat_stale === false && snapshot?.scanner?.heartbeat_available === true,
+      severity: "blocker",
+      detail: `stale=${Boolean(snapshot?.scanner?.heartbeat_stale)}, latest_seen_at=${snapshot?.scanner?.latest_seen_at || "-"}`
+    },
+    {
+      name: "scanner_active_shards_4",
+      ok: activeShards === 4,
+      severity: "blocker",
+      detail: `active=${activeShards}`
+    },
+    {
+      name: "scanner_duplicate_shards_zero",
+      ok: duplicateShards.length === 0,
+      severity: "blocker",
+      detail: `duplicates=${duplicateShards.join(",") || "0"}`
+    },
+    {
+      name: "wallet_capacity_1_5m",
+      ok: availableWallets >= CAPACITY_TARGET_USERS,
+      severity: "blocker",
+      detail: `available=${availableWallets}, target=${CAPACITY_TARGET_USERS}, gap=${walletGap}`
+    },
+    {
+      name: "redis_ready",
+      ok: snapshot?.redis?.ok === true && snapshot?.redis_deep?.ok === true,
+      severity: "blocker",
+      detail: `redis=${Boolean(snapshot?.redis?.ok)}, deep=${Boolean(snapshot?.redis_deep?.ok)}`
+    },
+    {
+      name: "ton_signer_ready",
+      ok: snapshot?.ton_signer?.ok === true,
+      severity: "blocker",
+      detail: `ok=${Boolean(snapshot?.ton_signer?.ok)}, remote_wallet_files=${snapshot?.ton_signer?.remote_signer?.wallet_files ?? "unknown"}`
+    },
+    {
+      name: "security_posture_ok",
+      ok: security.status === "ok",
+      severity: "blocker",
+      detail: `status=${security.status}`
+    },
+    {
+      name: "frontend_contract_ready",
+      ok: frontendContract.status === "ready",
+      severity: "warning",
+      detail: `status=${frontendContract.status}, warnings=${frontendContract.warnings.length}`
+    },
+    {
+      name: "scanner_lag_under_threshold",
+      ok: scannerLagMs === null ? false : scannerLagMs <= PAYMENT_SCANNER_STALE_AFTER_MS,
+      severity: "warning",
+      detail: `lag_ms=${scannerLagMs ?? "unknown"}, stale_after_ms=${PAYMENT_SCANNER_STALE_AFTER_MS}`
+    },
+    {
+      name: "runtime_memory_observable",
+      ok: Number(metrics?.memory_mb?.rss || 0) > 0,
+      severity: "warning",
+      detail: `rss_mb=${metrics?.memory_mb?.rss ?? "unknown"}`
+    }
+  ];
+  const blockers = checks.filter((item) => !item.ok && item.severity === "blocker");
+  const warnings = checks.filter((item) => !item.ok && item.severity !== "blocker");
+  return {
+    status: blockers.length ? "blocked" : (warnings.length ? "warning" : "ready"),
+    version: BACKEND_VERSION,
+    checked_at: new Date().toISOString(),
+    target_users: CAPACITY_TARGET_USERS,
+    checks,
+    blockers,
+    warnings,
+    metrics: {
+      uptime_seconds: metrics.uptime_seconds,
+      memory_mb: metrics.memory_mb,
+      active_requests: metrics.requests.active_requests,
+      highest_active_requests: metrics.requests.highest_active_requests,
+      total_requests: metrics.requests.total_requests,
+      max_duration_ms: metrics.requests.max_duration_ms
+    },
+    capacity: {
+      available_wallets: availableWallets,
+      assigned_wallets: assignedWallets,
+      wallet_gap: walletGap
+    },
+    scanner: {
+      workers_alive: scannerWorkersAlive,
+      active_shards: activeShards,
+      duplicate_shards: duplicateShards,
+      heartbeat_lag_ms: scannerLagMs,
+      scan_batch_size: Number(snapshot?.scanner?.scan_batch_size || PAYMENT_SCAN_BATCH_SIZE),
+      scan_concurrency: Number(snapshot?.scanner?.scan_concurrency || PAYMENT_SCAN_CONCURRENCY)
+    },
+    frontend_contract: frontendContract,
+    security
+  };
+}
+
+function buildProductionHardeningReport(snapshot) {
+  const sla = buildProductionSlaReport(snapshot);
+  const checklist = [
+    {
+      name: "public_api_ready",
+      ok: !SCANNER_WORKER_MODE && snapshot?.status === "ready",
+      detail: `worker_mode=${SCANNER_WORKER_MODE ? "scanner" : "api"}, status=${snapshot?.status || "unknown"}`
+    },
+    {
+      name: "scanner_pool_ready",
+      ok: Number(snapshot?.scanner?.scanner_workers_alive || 0) >= FINAL_GATE_MIN_SCANNER_WORKERS,
+      detail: `alive=${Number(snapshot?.scanner?.scanner_workers_alive || 0)}`
+    },
+    {
+      name: "wallet_pool_ready",
+      ok: Number(snapshot?.wallet_capacity?.counts?.available_wallets?.count ?? 0) >= CAPACITY_TARGET_USERS,
+      detail: `available=${Number(snapshot?.wallet_capacity?.counts?.available_wallets?.count ?? 0)}`
+    },
+    {
+      name: "ton_remote_signer_ready",
+      ok: snapshot?.ton_signer?.remote_signer?.ok === true && Number(snapshot?.ton_signer?.remote_signer?.wallet_files || 0) >= CAPACITY_TARGET_USERS,
+      detail: `ok=${Boolean(snapshot?.ton_signer?.remote_signer?.ok)}, wallet_files=${snapshot?.ton_signer?.remote_signer?.wallet_files ?? "unknown"}`
+    },
+    {
+      name: "redis_locking_ready",
+      ok: snapshot?.redis_deep?.ok === true,
+      detail: `redis_deep=${Boolean(snapshot?.redis_deep?.ok)}`
+    },
+    {
+      name: "security_ready",
+      ok: sla.security.status === "ok",
+      detail: `status=${sla.security.status}`
+    },
+    {
+      name: "sla_not_blocked",
+      ok: sla.status !== "blocked",
+      detail: `status=${sla.status}`
+    }
+  ];
+  const blockers = checklist.filter((item) => !item.ok);
+  return {
+    status: blockers.length ? "blocked" : (sla.status === "warning" ? "warning" : "ready"),
+    version: BACKEND_VERSION,
+    checked_at: new Date().toISOString(),
+    target_users: CAPACITY_TARGET_USERS,
+    public_backend_url: PUBLIC_BACKEND_URL,
+    public_app_url: PUBLIC_APP_URL,
+    game_url: GAME_URL,
+    checklist,
+    blockers,
+    sla,
+    recommendations: blockers.length
+      ? blockers.map((item) => `Fix ${item.name}: ${item.detail}`)
+      : [
+          "Keep 4/4 scanner workers online for current 1.5M staging.",
+          "Run /ops/production-hardening?fresh=true after every backend deploy.",
+          "Run post-deploy signer, freeze, and drift checks after every env or signer change."
+        ]
+  };
+}
+
+function classifyIncidentLevel(blockerCount, warningCount) {
+  if (blockerCount >= 3) return "critical";
+  if (blockerCount > 0) return "incident";
+  if (warningCount > 0) return "watch";
+  return "clear";
+}
+
+function buildCapacityForecast(snapshot) {
+  const availableWallets = Number(snapshot?.wallet_capacity?.counts?.available_wallets?.count ?? 0);
+  const assignedWallets = Number(snapshot?.wallet_capacity?.counts?.assigned_wallets?.count ?? 0);
+  const totalWallets = Number(snapshot?.wallet_capacity?.counts?.total_wallets?.count ?? 0);
+  const scannerWorkersAlive = Number(snapshot?.scanner?.scanner_workers_alive || 0);
+  const activeShards = Number(snapshot?.shards?.active_shards || 0);
+  const walletBurnRateTargets = [100000, 300000, 500000, 1000000, 1500000, 3000000];
+  const walletCoverage = walletBurnRateTargets.map((target) => ({
+    target_users: target,
+    available_wallets: availableWallets,
+    enough: availableWallets >= target,
+    gap: availableWallets - target
+  }));
+  const scannerCoverage = [
+    {
+      target: "current_1_5m",
+      required_workers: FINAL_GATE_MIN_SCANNER_WORKERS,
+      alive_workers: scannerWorkersAlive,
+      enough: scannerWorkersAlive >= FINAL_GATE_MIN_SCANNER_WORKERS
+    },
+    {
+      target: "3m_baseline",
+      required_workers: CAPACITY_3M_MIN_SCANNER_WORKERS,
+      alive_workers: scannerWorkersAlive,
+      enough: scannerWorkersAlive >= CAPACITY_3M_MIN_SCANNER_WORKERS
+    },
+    {
+      target: "100x_baseline",
+      required_workers: CAPACITY_100X_MIN_SCANNER_WORKERS,
+      alive_workers: scannerWorkersAlive,
+      enough: scannerWorkersAlive >= CAPACITY_100X_MIN_SCANNER_WORKERS
+    },
+    {
+      target: "hyperscale_baseline",
+      required_workers: CAPACITY_HYPERSCALE_MIN_SCANNER_WORKERS,
+      alive_workers: scannerWorkersAlive,
+      enough: scannerWorkersAlive >= CAPACITY_HYPERSCALE_MIN_SCANNER_WORKERS
+    }
+  ];
+  return {
+    status: availableWallets >= CAPACITY_TARGET_USERS && scannerWorkersAlive >= FINAL_GATE_MIN_SCANNER_WORKERS ? "ready" : "blocked",
+    checked_at: new Date().toISOString(),
+    wallet_pool: {
+      total_wallets: totalWallets,
+      available_wallets: availableWallets,
+      assigned_wallets: assignedWallets,
+      target_users: CAPACITY_TARGET_USERS,
+      current_gap: availableWallets - CAPACITY_TARGET_USERS,
+      coverage: walletCoverage
+    },
+    scanner_pool: {
+      alive_workers: scannerWorkersAlive,
+      active_shards: activeShards,
+      expected_shards: 4,
+      scan_batch_size: Number(snapshot?.scanner?.scan_batch_size || PAYMENT_SCAN_BATCH_SIZE),
+      scan_concurrency: Number(snapshot?.scanner?.scan_concurrency || PAYMENT_SCAN_CONCURRENCY),
+      coverage: scannerCoverage
+    }
+  };
+}
+
+function buildIncidentStatusReport(snapshot) {
+  const hardening = buildProductionHardeningReport(snapshot);
+  const sla = hardening.sla;
+  const warnings = [
+    ...(Array.isArray(sla?.warnings) ? sla.warnings.map((item) => item.name || String(item)) : []),
+    ...(Array.isArray(hardening?.sla?.frontend_contract?.warnings) ? hardening.sla.frontend_contract.warnings : [])
+  ];
+  const blockers = [
+    ...(Array.isArray(hardening?.blockers) ? hardening.blockers.map((item) => item.name || String(item)) : []),
+    ...(Array.isArray(sla?.blockers) ? sla.blockers.map((item) => item.name || String(item)) : [])
+  ];
+  const uniqueBlockers = Array.from(new Set(blockers));
+  const uniqueWarnings = Array.from(new Set(warnings));
+  const level = classifyIncidentLevel(uniqueBlockers.length, uniqueWarnings.length);
+  return {
+    status: level,
+    ok: uniqueBlockers.length === 0,
+    checked_at: new Date().toISOString(),
+    version: BACKEND_VERSION,
+    blockers: uniqueBlockers,
+    warnings: uniqueWarnings,
+    action_required: uniqueBlockers.length > 0,
+    suggested_actions: uniqueBlockers.length
+      ? uniqueBlockers.map((name) => {
+          if (name.includes("scanner")) return "Check Render scanner workers 000-003 and their env values.";
+          if (name.includes("wallet")) return "Check payment_wallets capacity and wallet import batches.";
+          if (name.includes("signer")) return "Check TON remote signer tunnel/service, token, and key directory.";
+          if (name.includes("redis")) return "Check REDIS_URL and Redis service health.";
+          return `Inspect ${name} in /ops/production-hardening?fresh=true.`;
+        })
+      : ["No incident action required."]
+  };
+}
+
+function buildProductionMonitoringReport(snapshot) {
+  const hardening = buildProductionHardeningReport(snapshot);
+  const incident = buildIncidentStatusReport(snapshot);
+  const forecast = buildCapacityForecast(snapshot);
+  const metrics = buildProcessMetrics();
+  const status = hardening.status === "blocked" || incident.status === "critical" || incident.status === "incident"
+    ? "blocked"
+    : hardening.status === "warning" || incident.status === "watch"
+      ? "warning"
+      : "ready";
+  return {
+    status,
+    checked_at: new Date().toISOString(),
+    version: BACKEND_VERSION,
+    worker_mode: SCANNER_WORKER_MODE ? "scanner" : "api",
+    target_users: CAPACITY_TARGET_USERS,
+    summary: {
+      final_gate: snapshot?.gate?.status || "unknown",
+      scanner_workers_alive: Number(snapshot?.scanner?.scanner_workers_alive || 0),
+      active_shards: Number(snapshot?.shards?.active_shards || 0),
+      duplicate_shards: Array.isArray(snapshot?.shards?.duplicate_shards) ? snapshot.shards.duplicate_shards : [],
+      available_wallets: Number(snapshot?.wallet_capacity?.counts?.available_wallets?.count ?? 0),
+      ton_signer_ok: Boolean(snapshot?.ton_signer?.ok),
+      redis_ok: Boolean(snapshot?.redis?.ok && snapshot?.redis_deep?.ok),
+      security_status: hardening.sla.security.status,
+      incident_status: incident.status
+    },
+    runtime: {
+      uptime_seconds: metrics.uptime_seconds,
+      memory_mb: metrics.memory_mb,
+      active_requests: metrics.requests.active_requests,
+      highest_active_requests: metrics.requests.highest_active_requests,
+      requests_total: metrics.requests.requests_total,
+      responses_total: metrics.requests.responses_total,
+      errors_total: metrics.requests.errors_total,
+      slow_requests_total: metrics.requests.slow_requests_total,
+      max_duration_ms: metrics.requests.max_duration_ms
+    },
+    hardening,
+    incident,
+    forecast
+  };
+}
+
+function almostEqualNumber(left, right, tolerance = 0.000001) {
+  return Math.abs(Number(left) - Number(right)) <= tolerance;
+}
+
+function buildTonDepositAmountContract() {
+  const amount = Number(PAYMENT_AMOUNT_TON);
+  const min = Number(PAYMENT_MIN_RECEIVED_TON);
+  const max = Number(PAYMENT_MAX_RECEIVED_TON);
+  const activationRefund = Number(ACTIVATION_REFUND_TON);
+  const payout = Number(ACTIVATION_PAYOUT_TON);
+  const gasReserve = Number(TON_PAYOUT_GAS_RESERVE);
+  const checks = [];
+  const add = (name, ok, detail, severity = "blocker") => checks.push({ name, ok: Boolean(ok), detail: String(detail), severity });
+
+  add("payment_window_ordered", min <= amount && amount <= max, `min=${min}, amount=${amount}, max=${max}`);
+  add("payment_amount_expected_6_99", almostEqualNumber(amount, 6.99), `amount=${amount}`);
+  add("payment_min_expected_6_90", almostEqualNumber(min, 6.90), `min=${min}`);
+  add("payment_max_expected_7_05", almostEqualNumber(max, 7.05), `max=${max}`);
+  add("binance_fee_tolerance_window", max - min >= 0.10, `window=${Number((max - min).toFixed(4))}`);
+  add("activation_refund_visible_amount_positive", activationRefund > 0, `activation_refund=${activationRefund}`);
+  add("auto_payout_amount_expected_6_16", almostEqualNumber(payout, 6.16), `payout=${payout}`);
+  add("auto_payout_less_than_received_min", payout > 0 && payout < min, `payout=${payout}, min=${min}`);
+  add("gas_reserve_positive", gasReserve > 0, `gas_reserve=${gasReserve}`);
+  add("ton_network_mainnet", TON_SIGNER_NETWORK === "mainnet", `network=${TON_SIGNER_NETWORK}`);
+
+  const blockers = checks.filter((item) => !item.ok && item.severity === "blocker");
+  const warnings = checks.filter((item) => !item.ok && item.severity !== "blocker");
+  return {
+    ok: blockers.length === 0,
+    network: PAYMENT_NETWORK,
+    token: PAYMENT_TOKEN,
+    decimals: PAYMENT_TOKEN_DECIMALS,
+    amount,
+    min_received: min,
+    max_received: max,
+    activation_refund_visible_amount: activationRefund,
+    auto_payout_amount: payout,
+    gas_reserve: gasReserve,
+    checks,
+    blockers,
+    warnings
+  };
+}
+
+function buildDepositRehearsalReport(snapshot, dbAudit) {
+  const amountContract = buildTonDepositAmountContract();
+  const scannerWorkersAlive = Number(snapshot?.scanner?.scanner_workers_alive || 0);
+  const activeShards = Number(snapshot?.shards?.active_shards || 0);
+  const duplicateShards = Array.isArray(snapshot?.shards?.duplicate_shards) ? snapshot.shards.duplicate_shards : [];
+  const availableWallets = Number(snapshot?.wallet_capacity?.counts?.available_wallets?.count ?? 0);
+  const assignedWallets = Number(snapshot?.wallet_capacity?.counts?.assigned_wallets?.count ?? 0);
+  const pendingOrders = Number(snapshot?.backlog?.counts?.pending_orders?.count ?? dbAudit?.pending_total ?? 0);
+  const scanBatch = Number(snapshot?.scanner?.scan_batch_size || PAYMENT_SCAN_BATCH_SIZE);
+  const scanInterval = Number(snapshot?.scanner?.scan_interval_ms || PAYMENT_SCAN_INTERVAL_MS);
+  const scanCapacityPerMinute = scannerWorkersAlive * scanBatch * Math.max(1, Math.floor(60000 / Math.max(1, scanInterval)));
+  const pendingBacklogLimit = Math.max(1000, scanCapacityPerMinute * 2);
+  const walletPoolCanRepairOrders = availableWallets > 0 && availableWallets >= CAPACITY_TARGET_USERS;
+  const freshPendingWithoutWallet = Number(dbAudit?.fresh_pending_without_wallet || 0);
+  const security = buildSecurityStatus();
+  const frontendContract = buildFrontendDeploymentContract();
+  const checks = [];
+  const add = (name, ok, detail, severity = "blocker") => checks.push({ name, ok: Boolean(ok), detail: String(detail), severity });
+
+  add("final_gate_ready", snapshot?.gate?.status === "ready", `status=${snapshot?.gate?.status || "unknown"}`);
+  add("amount_contract_ready", amountContract.ok, `blockers=${amountContract.blockers.length}`);
+  add("scanner_workers_4_alive", scannerWorkersAlive >= FINAL_GATE_MIN_SCANNER_WORKERS, `alive=${scannerWorkersAlive}, required=${FINAL_GATE_MIN_SCANNER_WORKERS}`);
+  add("scanner_active_shards_4", activeShards === 4, `active=${activeShards}`);
+  add("scanner_duplicate_shards_zero", duplicateShards.length === 0, `duplicates=${duplicateShards.join(",") || "0"}`);
+  add("scanner_heartbeat_fresh", snapshot?.scanner?.heartbeat_available === true && snapshot?.scanner?.heartbeat_stale === false, `stale=${Boolean(snapshot?.scanner?.heartbeat_stale)}`);
+  add("wallet_capacity_available_1_5m", availableWallets >= CAPACITY_TARGET_USERS, `available=${availableWallets}, target=${CAPACITY_TARGET_USERS}`);
+  add("wallet_assignment_pool_has_buffer", availableWallets - CAPACITY_TARGET_USERS >= 0, `gap=${availableWallets - CAPACITY_TARGET_USERS}`);
+  add("redis_deep_ready", snapshot?.redis?.ok === true && snapshot?.redis_deep?.ok === true, `redis=${Boolean(snapshot?.redis?.ok)}, deep=${Boolean(snapshot?.redis_deep?.ok)}`);
+  add("ton_auto_payout_enabled", TON_AUTO_PAYOUT_ENABLED === true, `TON_AUTO_PAYOUT_ENABLED=${TON_AUTO_PAYOUT_ENABLED}`);
+  add("ton_signer_enabled", TON_SIGNER_ENABLED === true, `TON_SIGNER_ENABLED=${TON_SIGNER_ENABLED}`);
+  add("ton_signer_ready", snapshot?.ton_signer?.ok === true, `ok=${Boolean(snapshot?.ton_signer?.ok)}`);
+  add("remote_signer_ready", snapshot?.ton_signer?.remote_signer?.ok === true, `ok=${Boolean(snapshot?.ton_signer?.remote_signer?.ok)}`);
+  add("remote_signer_wallet_files_cover_pool", Number(snapshot?.ton_signer?.remote_signer?.wallet_files || 0) >= CAPACITY_TARGET_USERS, `wallet_files=${snapshot?.ton_signer?.remote_signer?.wallet_files ?? "unknown"}`);
+  add("ton_rpc_ready", snapshot?.ton_signer?.rpc?.ok === true, `rpc=${Boolean(snapshot?.ton_signer?.rpc?.ok)}`);
+  add("scanner_backlog_readable", snapshot?.backlog?.ok === true, `pending=${pendingOrders}`);
+  add("pending_backlog_within_scan_capacity", pendingOrders <= pendingBacklogLimit, `pending=${pendingOrders}, limit=${pendingBacklogLimit}`);
+  add("db_audit_readable", dbAudit?.counts_readable === true, `counts_readable=${Boolean(dbAudit?.counts_readable)}`);
+  add("wallet_pool_can_repair_walletless_orders", freshPendingWithoutWallet === 0 || walletPoolCanRepairOrders, `fresh_pending_without_wallet=${freshPendingWithoutWallet}, available=${availableWallets}`);
+  add("security_status_ok", security.status === "ok", `status=${security.status}`);
+  add("frontend_contract_ready", frontendContract.status === "ready", `status=${frontendContract.status}`);
+  add("api_service_mode", !SCANNER_WORKER_MODE, `worker_mode=${SCANNER_WORKER_MODE ? "scanner" : "api"}`);
+
+  const blockers = checks.filter((item) => !item.ok && item.severity === "blocker");
+  const warnings = [
+    ...checks.filter((item) => !item.ok && item.severity !== "blocker"),
+    ...(Array.isArray(dbAudit?.warnings) ? dbAudit.warnings.map((message) => ({
+      name: "db_audit_warning",
+      ok: false,
+      detail: message,
+      severity: "warning"
+    })) : []),
+    ...(freshPendingWithoutWallet > 0 && walletPoolCanRepairOrders ? [{
+      name: "fresh_walletless_order_repairable",
+      ok: false,
+      detail: `${freshPendingWithoutWallet} fresh pending order(s) have no wallet, but wallet pool is ready and new real-test payment creation can claim a wallet.`,
+      severity: "warning"
+    }] : [])
+  ];
+  const status = blockers.length ? "blocked" : (warnings.length ? "watch" : "ready");
+
+  return {
+    status,
+    ok: blockers.length === 0,
+    checked_at: new Date().toISOString(),
+    version: BACKEND_VERSION,
+    worker_mode: SCANNER_WORKER_MODE ? "scanner" : "api",
+    target_users: CAPACITY_TARGET_USERS,
+    no_side_effects: true,
+    real_money_sent_by_this_endpoint: false,
+    ready_for_real_ton_deposit_test: blockers.length === 0,
+    amount_contract: amountContract,
+    expected_real_test_flow: [
+      "User opens wallet and receives one persistent unique TON address.",
+      "User sends TON in the accepted received range 6.90-7.05.",
+      "Scanner confirms the matching transaction and unlocks wallet binding.",
+      "User binds their own TON address in withdraw flow.",
+      "Deposit refund request triggers auto payout from the user's assigned pool wallet.",
+      "History shows activation deposit and activation deposit refund records."
+    ],
+    safety_limits: {
+      payment_scan_interval_ms: PAYMENT_SCAN_INTERVAL_MS,
+      scan_batch_size: scanBatch,
+      scan_concurrency: Number(snapshot?.scanner?.scan_concurrency || PAYMENT_SCAN_CONCURRENCY),
+      scan_capacity_per_minute_estimate: scanCapacityPerMinute,
+      pending_backlog_limit: pendingBacklogLimit,
+      tonapi_request_timeout_ms: TONAPI_REQUEST_TIMEOUT_MS,
+      tonapi_retry_count: TONAPI_RETRY_COUNT,
+      signer_timeout_ms: TON_REMOTE_SIGNER_TIMEOUT_MS
+    },
+    observed: {
+      scanner_workers_alive: scannerWorkersAlive,
+      active_shards: activeShards,
+      duplicate_shards: duplicateShards,
+      available_wallets: availableWallets,
+      assigned_wallets: assignedWallets,
+      pending_orders: pendingOrders,
+      remote_signer_wallet_files: Number(snapshot?.ton_signer?.remote_signer?.wallet_files || 0),
+      incident_status: buildIncidentStatusReport(snapshot).status
+    },
+    db_audit: dbAudit,
+    checks,
+    blockers,
+    warnings,
+    next_manual_test: blockers.length
+      ? "Do not send real TON yet; fix blockers first."
+      : "Real TON test can start with a small controlled account and one user at a time."
+  };
+}
+
+function buildRealTonTestControlRoomReport(snapshot, dbAudit) {
+  const rehearsal = buildDepositRehearsalReport(snapshot, dbAudit);
+  const gateStatus = snapshot?.gate?.status || "unknown";
+  const scannerWorkersAlive = Number(rehearsal.observed.scanner_workers_alive || 0);
+  const activeShards = Number(rehearsal.observed.active_shards || 0);
+  const duplicateShards = Array.isArray(rehearsal.observed.duplicate_shards) ? rehearsal.observed.duplicate_shards : [];
+  const availableWallets = Number(rehearsal.observed.available_wallets || 0);
+  const walletBuffer = availableWallets - CAPACITY_TARGET_USERS;
+  const remoteSignerWalletFiles = Number(rehearsal.observed.remote_signer_wallet_files || 0);
+  const pendingOrders = Number(rehearsal.observed.pending_orders || 0);
+  const securityStatus = buildSecurityStatus();
+  const frontendContract = buildFrontendDeploymentContract();
+  const checks = [];
+  const add = (name, ok, detail, severity = "blocker") => checks.push({ name, ok: Boolean(ok), detail: String(detail), severity });
+
+  add("deposit_rehearsal_all_blockers_clear", rehearsal.ok === true, `blockers=${rehearsal.blockers.length}`);
+  add("final_gate_ready", gateStatus === "ready", `status=${gateStatus}`);
+  add("scanner_workers_4_alive", scannerWorkersAlive >= FINAL_GATE_MIN_SCANNER_WORKERS, `alive=${scannerWorkersAlive}`);
+  add("scanner_active_shards_4", activeShards === 4, `active=${activeShards}`);
+  add("scanner_duplicate_shards_empty", duplicateShards.length === 0, `duplicates=${duplicateShards.length}`);
+  add("wallet_pool_has_1_5m_capacity", availableWallets >= CAPACITY_TARGET_USERS, `available=${availableWallets}, target=${CAPACITY_TARGET_USERS}`);
+  add("wallet_pool_buffer_non_negative", walletBuffer >= 0, `buffer=${walletBuffer}`);
+  add("remote_signer_covers_wallet_pool", remoteSignerWalletFiles >= CAPACITY_TARGET_USERS, `wallet_files=${remoteSignerWalletFiles}`);
+  add("amount_contract_ready", rehearsal.amount_contract.ok === true, `amount=${rehearsal.amount_contract.amount}, range=${rehearsal.amount_contract.min_received}-${rehearsal.amount_contract.max_received}`);
+  add("auto_payout_amount_ready", almostEqualNumber(rehearsal.amount_contract.auto_payout_amount, 6.16), `payout=${rehearsal.amount_contract.auto_payout_amount}`);
+  add("pending_backlog_small_for_one_user_test", pendingOrders <= 100, `pending=${pendingOrders}`, "warning");
+  add("security_status_ok", securityStatus.status === "ok", `status=${securityStatus.status}`);
+  add("frontend_contract_ready", frontendContract.status === "ready", `status=${frontendContract.status}`);
+
+  const blockers = checks.filter((item) => !item.ok && item.severity === "blocker");
+  const warnings = [
+    ...checks.filter((item) => !item.ok && item.severity !== "blocker"),
+    ...rehearsal.warnings.map((item) => ({ ...item, source: "deposit_rehearsal" }))
+  ];
+  const status = blockers.length ? "blocked" : (warnings.length ? "watch" : "ready");
+
+  return {
+    status,
+    ok: blockers.length === 0,
+    checked_at: new Date().toISOString(),
+    version: BACKEND_VERSION,
+    no_side_effects: true,
+    real_money_sent_by_this_endpoint: false,
+    ready_for_one_controlled_real_ton_test: blockers.length === 0,
+    allowed_test_amount: {
+      send_exactly_ton: rehearsal.amount_contract.amount,
+      accepted_received_min_ton: rehearsal.amount_contract.min_received,
+      accepted_received_max_ton: rehearsal.amount_contract.max_received,
+      auto_refund_payout_ton: rehearsal.amount_contract.auto_payout_amount,
+      gas_reserve_ton: rehearsal.amount_contract.gas_reserve
+    },
+    observed: {
+      scanner_workers_alive: scannerWorkersAlive,
+      active_shards: activeShards,
+      duplicate_shards: duplicateShards,
+      available_wallets: availableWallets,
+      wallet_buffer: walletBuffer,
+      remote_signer_wallet_files: remoteSignerWalletFiles,
+      pending_orders: pendingOrders,
+      final_gate: gateStatus,
+      incident_status: rehearsal.observed.incident_status
+    },
+    controlled_test_protocol: [
+      "Use exactly one controlled Telegram user first.",
+      "Open the wallet screen and verify one persistent unique TON address is visible before sending funds.",
+      "Send TON so the received amount lands inside 6.90-7.05 TON.",
+      "Wait for scanner confirmation before binding the user's own TON address.",
+      "Request the activation deposit refund only once.",
+      "Confirm history contains activation deposit and activation deposit refund records."
+    ],
+    stop_conditions: [
+      "Do not send TON if this endpoint is blocked.",
+      "Stop if scanner workers drop below 4/4.",
+      "Stop if active shards are not exactly 4 or duplicate shards appear.",
+      "Stop if the user does not see a unique TON address.",
+      "Stop if TON signer or final gate becomes not ready.",
+      "Stop if the first real test is not detected before increasing test volume."
+    ],
+    next_step: blockers.length
+      ? "Fix blockers before any real TON test."
+      : "Run one small controlled real TON test, then re-check this endpoint before the next test.",
+    checks,
+    blockers,
+    warnings
+  };
+}
+
+function buildDepositRefundPayoutSafetyReport(snapshot, dbAudit) {
+  const rehearsal = buildDepositRehearsalReport(snapshot, dbAudit);
+  const amountContract = rehearsal.amount_contract;
+  const counts = dbAudit?.counts || {};
+  const pendingRefunds = Number(counts.deposit_refund_withdraws_pending?.count || 0);
+  const processingRefunds = Number(counts.deposit_refund_withdraws_processing?.count || 0);
+  const activeRefunds = Number(counts.deposit_refund_withdraws_active?.count || (pendingRefunds + processingRefunds));
+  const completedRefunds24h = Number(counts.deposit_refund_withdraws_completed_24h?.count || 0);
+  const failedRefunds24h = Number(counts.deposit_refund_withdraws_failed_24h?.count || 0);
+  const remoteSignerWalletFiles = Number(snapshot?.ton_signer?.remote_signer?.wallet_files || 0);
+  const checks = [];
+  const add = (name, ok, detail, severity = "blocker") => checks.push({ name, ok: Boolean(ok), detail: String(detail), severity });
+
+  add("deposit_rehearsal_not_blocked", rehearsal.ok === true, `blockers=${rehearsal.blockers.length}`);
+  add("ton_auto_payout_enabled", TON_AUTO_PAYOUT_ENABLED === true, `TON_AUTO_PAYOUT_ENABLED=${TON_AUTO_PAYOUT_ENABLED}`);
+  add("ton_signer_enabled", TON_SIGNER_ENABLED === true, `TON_SIGNER_ENABLED=${TON_SIGNER_ENABLED}`);
+  add("ton_signer_ready", snapshot?.ton_signer?.ok === true, `ok=${Boolean(snapshot?.ton_signer?.ok)}`);
+  add("remote_signer_ready", snapshot?.ton_signer?.remote_signer?.ok === true, `ok=${Boolean(snapshot?.ton_signer?.remote_signer?.ok)}`);
+  add("remote_signer_wallet_files_cover_pool", remoteSignerWalletFiles >= CAPACITY_TARGET_USERS, `wallet_files=${remoteSignerWalletFiles}`);
+  add("ton_rpc_ready", snapshot?.ton_signer?.rpc?.ok === true, `rpc=${Boolean(snapshot?.ton_signer?.rpc?.ok)}`);
+  add("refund_payout_amount_6_16", almostEqualNumber(amountContract.auto_payout_amount, 6.16), `payout=${amountContract.auto_payout_amount}`);
+  add("refund_payout_less_than_min_received", Number(amountContract.auto_payout_amount) < Number(amountContract.min_received), `payout=${amountContract.auto_payout_amount}, min=${amountContract.min_received}`);
+  add("gas_reserve_positive", Number(amountContract.gas_reserve) > 0, `gas_reserve=${amountContract.gas_reserve}`);
+  add("active_refund_queue_reasonable", activeRefunds <= 100, `active=${activeRefunds}`, "warning");
+  add("failed_refunds_24h_watch", failedRefunds24h === 0, `failed_24h=${failedRefunds24h}`, "warning");
+  add("db_audit_readable", dbAudit?.counts_readable === true, `counts_readable=${Boolean(dbAudit?.counts_readable)}`);
+
+  const blockers = checks.filter((item) => !item.ok && item.severity === "blocker");
+  const warnings = [
+    ...checks.filter((item) => !item.ok && item.severity !== "blocker"),
+    ...rehearsal.warnings.map((item) => ({ ...item, source: "deposit_rehearsal" }))
+  ];
+  const status = blockers.length ? "blocked" : (warnings.length ? "watch" : "ready");
+
+  return {
+    status,
+    ok: blockers.length === 0,
+    checked_at: new Date().toISOString(),
+    version: BACKEND_VERSION,
+    no_side_effects: true,
+    real_money_sent_by_this_endpoint: false,
+    ready_for_activation_deposit_refund_payout: blockers.length === 0,
+    payout_contract: {
+      source: "assigned_unique_ton_wallet",
+      destination: "user_bound_ton_wallet",
+      visible_refund_balance_ton: amountContract.activation_refund_visible_amount,
+      auto_payout_amount_ton: amountContract.auto_payout_amount,
+      accepted_deposit_min_ton: amountContract.min_received,
+      accepted_deposit_max_ton: amountContract.max_received,
+      gas_reserve_ton: amountContract.gas_reserve,
+      comment: TON_PAYOUT_BODY
+    },
+    observed: {
+      pending_refunds: pendingRefunds,
+      processing_refunds: processingRefunds,
+      active_refunds: activeRefunds,
+      completed_refunds_24h: completedRefunds24h,
+      failed_refunds_24h: failedRefunds24h,
+      remote_signer_wallet_files: remoteSignerWalletFiles,
+      signer_ok: Boolean(snapshot?.ton_signer?.ok),
+      remote_signer_ok: Boolean(snapshot?.ton_signer?.remote_signer?.ok),
+      rpc_ok: Boolean(snapshot?.ton_signer?.rpc?.ok)
+    },
+    stop_conditions: [
+      "Stop if this endpoint is blocked.",
+      "Stop if TON signer, remote signer, or RPC is not ready.",
+      "Stop if payout amount is not 6.16 TON.",
+      "Stop if failed refunds appear during the first controlled real test.",
+      "Stop if active refund queue grows unexpectedly before first test completes."
+    ],
+    next_step: blockers.length
+      ? "Fix payout safety blockers before allowing activation deposit refund payout."
+      : "Allow one activation deposit refund payout test only, then re-check this endpoint.",
+    checks,
+    blockers,
+    warnings
+  };
+}
+
+function buildCanaryRolloutReport(snapshot, dbAudit) {
+  const rehearsal = buildDepositRehearsalReport(snapshot, dbAudit);
+  const controlRoom = buildRealTonTestControlRoomReport(snapshot, dbAudit);
+  const refundSafety = buildDepositRefundPayoutSafetyReport(snapshot, dbAudit);
+  const hardening = buildProductionHardeningReport(snapshot);
+  const monitoring = buildProductionMonitoringReport(snapshot);
+  const incident = buildIncidentStatusReport(snapshot);
+  const forecast = buildCapacityForecast(snapshot);
+  const security = buildSecurityStatus();
+  const frontendContract = buildFrontendDeploymentContract();
+  const counts = dbAudit?.counts || {};
+  const scannerWorkersAlive = Number(snapshot?.scanner?.scanner_workers_alive || 0);
+  const activeShards = Number(snapshot?.shards?.active_shards || 0);
+  const duplicateShards = Array.isArray(snapshot?.shards?.duplicate_shards) ? snapshot.shards.duplicate_shards : [];
+  const availableWallets = Number(snapshot?.wallet_capacity?.counts?.available_wallets?.count ?? 0);
+  const assignedWallets = Number(snapshot?.wallet_capacity?.counts?.assigned_wallets?.count ?? 0);
+  const pendingOrders = Number(snapshot?.backlog?.counts?.pending_orders?.count ?? 0);
+  const remoteSignerWalletFiles = Number(snapshot?.ton_signer?.remote_signer?.wallet_files || 0);
+  const activeRefunds = Number(counts.deposit_refund_withdraws_active?.count || refundSafety.observed.active_refunds || 0);
+  const failedRefunds24h = Number(counts.deposit_refund_withdraws_failed_24h?.count || refundSafety.observed.failed_refunds_24h || 0);
+  const failedRefundRollbackThreshold = Math.max(1, Number(process.env.CANARY_FAILED_REFUNDS_ROLLBACK_THRESHOLD || 3));
+  const pendingBacklogLimit = Number(rehearsal?.safety_limits?.pending_backlog_limit || 1000);
+  const checks = [];
+  const add = (name, ok, detail, severity = "blocker") => checks.push({ name, ok: Boolean(ok), detail: String(detail), severity });
+
+  add("final_gate_ready", snapshot?.gate?.status === "ready", `status=${snapshot?.gate?.status || "unknown"}`);
+  add("scale_contract_ready", snapshot?.contract?.status === "ready", `status=${snapshot?.contract?.status || "unknown"}`);
+  add("production_hardening_not_blocked", hardening.status !== "blocked", `status=${hardening.status}`);
+  add("production_monitoring_not_blocked", monitoring.status !== "blocked", `status=${monitoring.status}`);
+  add("incident_clear_or_watch", incident.status === "clear" || incident.status === "watch", `status=${incident.status}`);
+  add("deposit_rehearsal_ready", rehearsal.ok === true, `status=${rehearsal.status}, blockers=${rehearsal.blockers.length}`);
+  add("real_test_control_room_ready", controlRoom.ok === true, `status=${controlRoom.status}, blockers=${controlRoom.blockers.length}`);
+  add("deposit_refund_safety_ready", refundSafety.ok === true, `status=${refundSafety.status}, blockers=${refundSafety.blockers.length}`);
+  add("scanner_workers_4_alive", scannerWorkersAlive >= FINAL_GATE_MIN_SCANNER_WORKERS, `alive=${scannerWorkersAlive}, required=${FINAL_GATE_MIN_SCANNER_WORKERS}`);
+  add("scanner_active_shards_4", activeShards === 4, `active=${activeShards}`);
+  add("scanner_duplicate_shards_zero", duplicateShards.length === 0, `duplicates=${duplicateShards.join(",") || "0"}`);
+  add("redis_ready", snapshot?.redis?.ok === true && snapshot?.redis_deep?.ok === true, `redis=${Boolean(snapshot?.redis?.ok)}, deep=${Boolean(snapshot?.redis_deep?.ok)}`);
+  add("wallet_capacity_1_5m_ready", availableWallets >= CAPACITY_TARGET_USERS, `available=${availableWallets}, target=${CAPACITY_TARGET_USERS}`);
+  add("wallet_pool_assignment_safe", availableWallets + assignedWallets >= CAPACITY_TARGET_USERS, `available=${availableWallets}, assigned=${assignedWallets}`);
+  add("ton_signer_ready", snapshot?.ton_signer?.ok === true, `ok=${Boolean(snapshot?.ton_signer?.ok)}`);
+  add("remote_signer_wallet_files_cover_pool", remoteSignerWalletFiles >= CAPACITY_TARGET_USERS, `wallet_files=${remoteSignerWalletFiles}, target=${CAPACITY_TARGET_USERS}`);
+  add("frontend_contract_ready", frontendContract.status === "ready", `status=${frontendContract.status}`);
+  add("security_status_ok", security.status === "ok", `status=${security.status}`);
+  add("amount_contract_ready", rehearsal.amount_contract.ok === true, `blockers=${rehearsal.amount_contract.blockers.length}`);
+  add("pending_backlog_inside_limit", pendingOrders <= pendingBacklogLimit, `pending=${pendingOrders}, limit=${pendingBacklogLimit}`);
+  add("active_refunds_watch", activeRefunds <= 100, `active=${activeRefunds}`, "warning");
+  add("failed_refunds_24h_below_rollback_threshold", failedRefunds24h < failedRefundRollbackThreshold, `failed_24h=${failedRefunds24h}, threshold=${failedRefundRollbackThreshold}`, "warning");
+  add("security_suspicious_requests_watch", Number(security?.counters?.suspicious_requests_total || 0) <= 100, `suspicious=${security?.counters?.suspicious_requests_total || 0}`, "warning");
+
+  const blockers = checks.filter((item) => !item.ok && item.severity === "blocker");
+  const warnings = [
+    ...checks.filter((item) => !item.ok && item.severity !== "blocker"),
+    ...rehearsal.warnings.map((item) => ({ ...item, source: "deposit_rehearsal" })),
+    ...controlRoom.warnings.map((item) => ({ ...item, source: "real_test_control_room" })),
+    ...refundSafety.warnings.map((item) => ({ ...item, source: "deposit_refund_safety" }))
+  ];
+  const uniqueWarnings = Array.from(new Map(warnings.map((item) => [`${item.source || "local"}:${item.name}:${item.detail}`, item])).values());
+  const status = blockers.length ? "blocked" : (uniqueWarnings.length ? "watch" : "ready");
+  const rollbackTriggers = [
+    { name: "final_gate_blocked", active: snapshot?.gate?.status !== "ready", detail: `status=${snapshot?.gate?.status || "unknown"}` },
+    { name: "scanner_workers_below_4", active: scannerWorkersAlive < FINAL_GATE_MIN_SCANNER_WORKERS, detail: `alive=${scannerWorkersAlive}` },
+    { name: "active_shards_not_4", active: activeShards !== 4, detail: `active=${activeShards}` },
+    { name: "duplicate_shards_present", active: duplicateShards.length > 0, detail: `duplicates=${duplicateShards.join(",") || "0"}` },
+    { name: "wallet_pool_below_1_5m", active: availableWallets < CAPACITY_TARGET_USERS, detail: `available=${availableWallets}` },
+    { name: "ton_signer_not_ready", active: snapshot?.ton_signer?.ok !== true, detail: `ok=${Boolean(snapshot?.ton_signer?.ok)}` },
+    { name: "pending_backlog_over_limit", active: pendingOrders > pendingBacklogLimit, detail: `pending=${pendingOrders}, limit=${pendingBacklogLimit}` },
+    { name: "failed_refunds_over_threshold", active: failedRefunds24h >= failedRefundRollbackThreshold, detail: `failed_24h=${failedRefunds24h}, threshold=${failedRefundRollbackThreshold}` },
+    { name: "security_blocked", active: security.status !== "ok", detail: `status=${security.status}` }
+  ];
+  const activeRollbackTriggers = rollbackTriggers.filter((item) => item.active);
+  const canOpen = blockers.length === 0 && activeRollbackTriggers.length === 0;
+  const stageDefinitions = [
+    { id: "canary_1", users: 1, manual_confirmation_required: true },
+    { id: "canary_10", users: 10, manual_confirmation_required: true },
+    { id: "canary_100", users: 100, manual_confirmation_required: true },
+    { id: "canary_1000", users: 1000, manual_confirmation_required: false },
+    { id: "canary_10000", users: 10000, manual_confirmation_required: false },
+    { id: "canary_100000", users: 100000, manual_confirmation_required: false },
+    { id: "public_1500000", users: CAPACITY_TARGET_USERS, manual_confirmation_required: false }
+  ];
+  const canaryStages = stageDefinitions.map((stage) => ({
+    ...stage,
+    status: canOpen && availableWallets >= stage.users ? "open" : "hold",
+    reason: canOpen && availableWallets >= stage.users
+      ? "All blockers are clear for this stage."
+      : `Hold: blockers=${blockers.length}, rollback_triggers=${activeRollbackTriggers.length}, available_wallets=${availableWallets}.`
+  }));
+
+  return {
+    status,
+    ok: blockers.length === 0,
+    checked_at: new Date().toISOString(),
+    version: BACKEND_VERSION,
+    target_users: CAPACITY_TARGET_USERS,
+    no_side_effects: true,
+    real_money_sent_by_this_endpoint: false,
+    ready_for_canary_1: canaryStages[0]?.status === "open",
+    ready_for_canary_10: canaryStages[1]?.status === "open",
+    ready_for_1_5m_public_traffic: canaryStages[canaryStages.length - 1]?.status === "open",
+    next_recommended_stage: canaryStages.find((stage) => stage.status === "open")?.id || "hold",
+    observed: {
+      scanner_workers_alive: scannerWorkersAlive,
+      active_shards: activeShards,
+      duplicate_shards: duplicateShards,
+      available_wallets: availableWallets,
+      assigned_wallets: assignedWallets,
+      wallet_buffer: availableWallets - CAPACITY_TARGET_USERS,
+      pending_orders: pendingOrders,
+      pending_backlog_limit: pendingBacklogLimit,
+      active_refunds: activeRefunds,
+      failed_refunds_24h: failedRefunds24h,
+      failed_refunds_rollback_threshold: failedRefundRollbackThreshold,
+      remote_signer_wallet_files: remoteSignerWalletFiles,
+      final_gate: snapshot?.gate?.status || "unknown",
+      incident_status: incident.status,
+      security_status: security.status,
+      frontend_contract_status: frontendContract.status
+    },
+    rollout_policy: {
+      start_at: "canary_1",
+      advance_rule: "Advance only when this report stays non-blocked and real deposits/refunds pass the previous stage.",
+      rollback_rule: "Rollback immediately when any rollback trigger becomes active.",
+      failed_refund_rule: `Failed refunds stay visible as warnings; rollback starts at ${failedRefundRollbackThreshold} failed refund(s) in 24h.`,
+      real_money_rule: "Ops endpoints are read-only; real TON movement must be done only by the payment/refund flow."
+    },
+    canary_stages: canaryStages,
+    rollback_triggers: rollbackTriggers,
+    active_rollback_triggers: activeRollbackTriggers,
+    dependencies: {
+      deposit_rehearsal: {
+        status: rehearsal.status,
+        ok: rehearsal.ok,
+        blockers_count: rehearsal.blockers.length,
+        warnings_count: rehearsal.warnings.length
+      },
+      real_test_control_room: {
+        status: controlRoom.status,
+        ok: controlRoom.ok,
+        blockers_count: controlRoom.blockers.length,
+        warnings_count: controlRoom.warnings.length
+      },
+      deposit_refund_safety: {
+        status: refundSafety.status,
+        ok: refundSafety.ok,
+        blockers_count: refundSafety.blockers.length,
+        warnings_count: refundSafety.warnings.length
+      },
+      production_hardening: {
+        status: hardening.status,
+        blockers_count: Array.isArray(hardening.blockers) ? hardening.blockers.length : 0
+      },
+      production_monitoring: {
+        status: monitoring.status
+      },
+      capacity_forecast: {
+        status: forecast.status,
+        wallet_available: forecast.wallet_pool?.available_wallets,
+        scanner_alive_workers: forecast.scanner_pool?.alive_workers
+      }
+    },
+    checks,
+    blockers,
+    warnings: uniqueWarnings,
+    next_step: blockers.length
+      ? "Hold rollout and fix blockers before opening more users."
+      : "Start or continue canary stages in order, checking this endpoint after each stage."
+  };
+}
+
+async function claimPendingPaymentOrdersForScan(limit, context = getPaymentScannerDefaultContext()) {
   const claimSeconds = Math.max(30, Math.ceil(Number(PAYMENT_SCAN_INTERVAL_MS || 15000) / 1000) * 4);
   const claimLimit = Math.max(1, Math.min(5000, Number(limit || PAYMENT_SCAN_BATCH_SIZE)));
   const shardedClaim = await supabase.rpc("claim_pending_payment_orders_sharded", {
     p_limit: claimLimit,
-    p_worker_id: PAYMENT_SCANNER_WORKER_ID,
+    p_worker_id: context?.workerId || PAYMENT_SCANNER_WORKER_ID,
     p_network: PAYMENT_NETWORK,
     p_token: PAYMENT_TOKEN,
     p_claim_seconds: claimSeconds,
-    p_shard_count: PAYMENT_SCANNER_SHARD_COUNT,
-    p_shard_index: PAYMENT_SCANNER_SHARD_INDEX
+    p_shard_count: context?.shardCount || PAYMENT_SCANNER_SHARD_COUNT,
+    p_shard_index: context?.shardIndex ?? PAYMENT_SCANNER_SHARD_INDEX
   });
 
   if (!shardedClaim.error) return shardedClaim.data || [];
@@ -3371,7 +5513,7 @@ async function claimPendingPaymentOrdersForScan(limit) {
 
   const { data: claimedOrders, error: claimError } = await supabase.rpc("claim_pending_payment_orders", {
     p_limit: claimLimit,
-    p_worker_id: PAYMENT_SCANNER_WORKER_ID,
+    p_worker_id: context?.workerId || PAYMENT_SCANNER_WORKER_ID,
     p_network: PAYMENT_NETWORK,
     p_token: PAYMENT_TOKEN,
     p_claim_seconds: claimSeconds
@@ -3404,26 +5546,27 @@ async function claimPendingPaymentOrdersForScan(limit) {
   return orders || [];
 }
 
-async function scanPendingPaymentOrders(limit = PAYMENT_SCAN_BATCH_SIZE) {
-  if (paymentScannerState.running) return paymentScannerState;
-  const scannerLock = await acquireScannerDistributedLock();
+async function scanPendingPaymentOrders(limit = PAYMENT_SCAN_BATCH_SIZE, context = getPaymentScannerDefaultContext()) {
+  const state = getPaymentScannerState(context);
+  if (state.running) return state;
+  const scannerLock = await acquireScannerDistributedLock(context);
   if (scannerLock.enabled && !scannerLock.acquired) {
-    paymentScannerState.lastRunAt = new Date().toISOString();
-    paymentScannerState.lastError = scannerLock.message;
-    await recordPaymentScannerHeartbeat();
-    return paymentScannerState;
+    state.lastRunAt = new Date().toISOString();
+    state.lastError = scannerLock.message;
+    await recordPaymentScannerHeartbeat(context, state);
+    return state;
   }
-  paymentScannerState.running = true;
-  paymentScannerState.lastRunAt = new Date().toISOString();
-  paymentScannerState.lastError = null;
-  await recordPaymentScannerHeartbeat();
+  state.running = true;
+  state.lastRunAt = new Date().toISOString();
+  state.lastError = null;
+  await recordPaymentScannerHeartbeat(context, state);
 
   try {
     await expireStalePaymentOrders().catch((err) => {
       if (err?.code !== "23505") throw err;
       console.warn("[payments] scanner stale cleanup skipped because of legacy unique status constraint");
     });
-    const orders = await claimPendingPaymentOrdersForScan(limit);
+    const orders = await claimPendingPaymentOrdersForScan(limit, context);
 
     const queue = Array.isArray(orders) ? orders : [];
     let cursor = 0;
@@ -3433,24 +5576,24 @@ async function scanPendingPaymentOrders(limit = PAYMENT_SCAN_BATCH_SIZE) {
       while (cursor < queue.length) {
         if (runErrors >= PAYMENT_SCAN_MAX_ERRORS_PER_RUN) break;
         const order = queue[cursor++];
-        paymentScannerState.checked += 1;
+        state.checked += 1;
         try {
           if (PAYMENT_SCAN_ORDER_DELAY_MS) await sleep(PAYMENT_SCAN_ORDER_DELAY_MS);
           const confirmed = await scanPaymentOrder(order);
-          if (confirmed) paymentScannerState.confirmed += 1;
+          if (confirmed) state.confirmed += 1;
         } catch (err) {
           runErrors += 1;
-          paymentScannerState.lastError = err.message;
+          state.lastError = err.message;
         }
       }
     }));
 
-    return paymentScannerState;
+    return state;
   } catch (err) {
-    paymentScannerState.lastError = err.message || String(err);
+    state.lastError = err.message || String(err);
     throw err;
   } finally {
-    paymentScannerState.running = false;
+    state.running = false;
     if (scannerLock.enabled && scannerLock.acquired && scannerLock.key && scannerLock.value) {
       await releaseRedisLock(scannerLock.key, scannerLock.value).catch((err) => {
         if (!redisScannerLockWarned) {
@@ -3459,7 +5602,7 @@ async function scanPendingPaymentOrders(limit = PAYMENT_SCAN_BATCH_SIZE) {
         }
       });
     }
-    await recordPaymentScannerHeartbeat();
+    await recordPaymentScannerHeartbeat(context, state);
   }
 }
 
@@ -3987,6 +6130,15 @@ app.get("/ops/metrics", (req, res) => {
   res.json(buildProcessMetrics());
 });
 
+app.get("/ops/security", (req, res) => {
+  res.json(buildSecurityStatus());
+});
+
+app.get("/ops/frontend-contract", (req, res) => {
+  const frontendContract = buildFrontendDeploymentContract();
+  res.status(frontendContract.status === "ready" ? 200 : 409).json(frontendContract);
+});
+
 app.get("/ops/capacity", async (req, res) => {
   try {
     const scannerHeartbeats = await readPaymentScannerHeartbeats();
@@ -4237,8 +6389,339 @@ app.get("/ops/final-gate", async (req, res) => {
       wallet_capacity: snapshot.wallet_capacity,
       backlog: snapshot.backlog,
       contract: snapshot.contract,
+      security: buildSecurityStatus(),
+      frontend_contract: buildFrontendDeploymentContract(),
       cache: snapshot.cache
     });
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/marketing-spike-gate", async (req, res) => {
+  try {
+    const snapshot = await buildOpsSnapshot({ force: req.query?.fresh === "true" });
+    const gate = buildMarketingSpikeGate(snapshot);
+    res.status(gate.ok ? 200 : 409).json({
+      status: gate.status,
+      version: BACKEND_VERSION,
+      worker_mode: SCANNER_WORKER_MODE ? "scanner" : "api",
+      gate,
+      cache: snapshot.cache
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/production-hardening", async (req, res) => {
+  try {
+    const snapshot = await buildOpsSnapshot({ force: req.query?.fresh === "true" });
+    const report = buildProductionHardeningReport(snapshot);
+    res.status(report.status === "blocked" ? 409 : 200).json(report);
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/production-sla", async (req, res) => {
+  try {
+    const snapshot = await buildOpsSnapshot({ force: req.query?.fresh === "true" });
+    const report = buildProductionSlaReport(snapshot);
+    res.status(report.status === "blocked" ? 409 : 200).json(report);
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/production-monitoring", async (req, res) => {
+  try {
+    const snapshot = await buildOpsSnapshot({ force: req.query?.fresh === "true" });
+    const report = buildProductionMonitoringReport(snapshot);
+    res.status(report.status === "blocked" ? 409 : 200).json(report);
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/deposit-rehearsal", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const [snapshot, dbAudit] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force })
+    ]);
+    const report = buildDepositRehearsalReport(snapshot, dbAudit);
+    res.status(report.status === "blocked" ? 409 : 200).json(report);
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/real-test-readiness", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const [snapshot, dbAudit] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force })
+    ]);
+    const rehearsal = buildDepositRehearsalReport(snapshot, dbAudit);
+    res.status(rehearsal.ok ? 200 : 409).json({
+      status: rehearsal.ok ? "ready" : "blocked",
+      ok: rehearsal.ok,
+      checked_at: rehearsal.checked_at,
+      version: BACKEND_VERSION,
+      ready_for_real_ton_deposit_test: rehearsal.ready_for_real_ton_deposit_test,
+      amount_contract: rehearsal.amount_contract,
+      observed: rehearsal.observed,
+      blockers: rehearsal.blockers,
+      warnings: rehearsal.warnings,
+      next_manual_test: rehearsal.next_manual_test
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/real-test-order-refresh", async (req, res) => {
+  try {
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || "8188152343";
+    const report = await buildRealTestOrderRefreshOpsReport(telegramId);
+    res.status(report.status === "blocked" ? 409 : 200).json(report);
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/real-test-control-room", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const [snapshot, dbAudit] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force })
+    ]);
+    const report = buildRealTonTestControlRoomReport(snapshot, dbAudit);
+    res.status(report.status === "blocked" ? 409 : 200).json(report);
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/real-test-control-room/summary", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const [snapshot, dbAudit] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force })
+    ]);
+    const report = buildRealTonTestControlRoomReport(snapshot, dbAudit);
+    res.status(report.status === "blocked" ? 409 : 200).json({
+      status: report.status,
+      ok: report.ok,
+      checked_at: report.checked_at,
+      version: BACKEND_VERSION,
+      ready_for_one_controlled_real_ton_test: report.ready_for_one_controlled_real_ton_test,
+      allowed_test_amount: report.allowed_test_amount,
+      observed: report.observed,
+      blockers_count: report.blockers.length,
+      warnings_count: report.warnings.length,
+      next_step: report.next_step
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/deposit-refund-safety", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const [snapshot, dbAudit] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force })
+    ]);
+    const report = buildDepositRefundPayoutSafetyReport(snapshot, dbAudit);
+    res.status(report.status === "blocked" ? 409 : 200).json(report);
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/deposit-refund-safety/summary", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const [snapshot, dbAudit] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force })
+    ]);
+    const report = buildDepositRefundPayoutSafetyReport(snapshot, dbAudit);
+    res.status(report.status === "blocked" ? 409 : 200).json({
+      status: report.status,
+      ok: report.ok,
+      checked_at: report.checked_at,
+      version: BACKEND_VERSION,
+      ready_for_activation_deposit_refund_payout: report.ready_for_activation_deposit_refund_payout,
+      payout_contract: report.payout_contract,
+      observed: report.observed,
+      blockers_count: report.blockers.length,
+      warnings_count: report.warnings.length,
+      next_step: report.next_step
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/canary-rollout", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const [snapshot, dbAudit] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force })
+    ]);
+    const report = buildCanaryRolloutReport(snapshot, dbAudit);
+    res.status(report.status === "blocked" ? 409 : 200).json(report);
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/canary-rollout/summary", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const [snapshot, dbAudit] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force })
+    ]);
+    const report = buildCanaryRolloutReport(snapshot, dbAudit);
+    res.status(report.status === "blocked" ? 409 : 200).json({
+      status: report.status,
+      ok: report.ok,
+      checked_at: report.checked_at,
+      version: BACKEND_VERSION,
+      ready_for_canary_1: report.ready_for_canary_1,
+      ready_for_canary_10: report.ready_for_canary_10,
+      ready_for_1_5m_public_traffic: report.ready_for_1_5m_public_traffic,
+      next_recommended_stage: report.next_recommended_stage,
+      observed: report.observed,
+      open_stage_count: report.canary_stages.filter((stage) => stage.status === "open").length,
+      active_rollback_triggers: report.active_rollback_triggers,
+      blockers_count: report.blockers.length,
+      warnings_count: report.warnings.length,
+      next_step: report.next_step
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/deposit-rehearsal/summary", async (req, res) => {
+  try {
+    const [snapshot, dbAudit] = await Promise.all([
+      buildOpsSnapshot({ force: req.query?.fresh === "true" }),
+      buildDepositRehearsalDbAudit({ force: req.query?.fresh === "true" })
+    ]);
+    const rehearsal = buildDepositRehearsalReport(snapshot, dbAudit);
+    res.status(rehearsal.ok ? 200 : 409).json({
+      status: rehearsal.status,
+      ok: rehearsal.ok,
+      version: BACKEND_VERSION,
+      scanner_workers_alive: rehearsal.observed.scanner_workers_alive,
+      active_shards: rehearsal.observed.active_shards,
+      available_wallets: rehearsal.observed.available_wallets,
+      remote_signer_wallet_files: rehearsal.observed.remote_signer_wallet_files,
+      payment_window: {
+        amount: rehearsal.amount_contract.amount,
+        min_received: rehearsal.amount_contract.min_received,
+        max_received: rehearsal.amount_contract.max_received,
+        auto_payout_amount: rehearsal.amount_contract.auto_payout_amount
+      },
+      blockers_count: rehearsal.blockers.length,
+      warnings_count: rehearsal.warnings.length
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/incident-status", async (req, res) => {
+  try {
+    const snapshot = await buildOpsSnapshot({ force: req.query?.fresh === "true" });
+    const report = buildIncidentStatusReport(snapshot);
+    res.status(report.ok ? 200 : 409).json(report);
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/capacity-forecast", async (req, res) => {
+  try {
+    const snapshot = await buildOpsSnapshot({ force: req.query?.fresh === "true" });
+    const report = buildCapacityForecast(snapshot);
+    res.status(report.status === "blocked" ? 409 : 200).json(report);
   } catch (err) {
     res.status(503).json({
       status: "not_ready",
@@ -4638,7 +7121,9 @@ async function sendTelegramStart(chatId, firstName, payload) {
 
 app.post("/telegram/webhook/:secret", async (req, res) => {
   try {
-    if (!TELEGRAM_WEBHOOK_SECRET || req.params.secret !== TELEGRAM_WEBHOOK_SECRET) {
+    const providedSecret = String(req.headers["x-telegram-bot-api-secret-token"] || req.params.secret || "");
+    if (!TELEGRAM_WEBHOOK_SECRET || !safeTokenEquals(providedSecret, TELEGRAM_WEBHOOK_SECRET)) {
+      securityLog("webhook", req, { reason: "invalid_telegram_webhook_secret" });
       return res.status(401).json({ error: "Webhook secret noto'g'ri" });
     }
 
@@ -5179,6 +7664,11 @@ app.post("/withdraw/request", async (req, res) => {
     const minWithdrawAmount = Math.min(configuredMinWithdrawAmount, Number(ACTIVATION_REFUND_TON) || configuredMinWithdrawAmount);
     const commissionPercent = 0;
 
+    if (!isSafeTelegramId(telegramId)) {
+      securityLog("suspicious", req, { reason: "invalid_withdraw_telegram_id" });
+      return res.status(400).json({ error: "telegram_id formati noto'g'ri" });
+    }
+
     if (!Number.isFinite(requestedAmount) || requestedAmount <= 0) {
       return res.status(400).json({ error: "amount noto'g'ri" });
     }
@@ -5362,6 +7852,10 @@ app.post("/withdraw/request", async (req, res) => {
 
 app.get("/withdraw/:telegram_id", async (req, res) => {
   const { telegram_id } = req.params;
+  if (!isSafeTelegramId(telegram_id)) {
+    securityLog("suspicious", req, { reason: "invalid_withdraw_history_telegram_id" });
+    return res.status(400).json({ error: "telegram_id formati noto'g'ri" });
+  }
 
   const { data, error } = await supabase
     .from("withdraws")
@@ -5512,13 +8006,14 @@ app.get("/notifications/:telegram_id", async (req, res) => {
 });
 
 function requireAdmin(req, res, next) {
-  const token = req.headers["x-admin-token"];
+  const token = getAdminTokenFromRequest(req);
 
   if (!ADMIN_TOKEN) {
     return res.status(500).json({ error: "ADMIN_TOKEN .env ichida yo'q" });
   }
 
-  if (token !== ADMIN_TOKEN) {
+  if (!safeTokenEquals(token, ADMIN_TOKEN)) {
+    securityLog("admin", req, { reason: "invalid_admin_token" });
     return res.status(401).json({ error: "Admin token noto'g'ri" });
   }
 
@@ -5532,7 +8027,8 @@ app.post("/admin/login", (req, res) => {
     return res.status(500).json({ error: "ADMIN_TOKEN .env ichida yo'q" });
   }
 
-  if (token !== ADMIN_TOKEN) {
+  if (!safeTokenEquals(token, ADMIN_TOKEN)) {
+    securityLog("admin", req, { reason: "invalid_admin_login" });
     return res.status(401).json({ error: "Token noto'g'ri" });
   }
 
@@ -6048,6 +8544,156 @@ app.get("/admin/payment-orders", requireAdmin, async (req, res) => {
   }
 });
 
+app.get("/admin/payment-ledger", requireAdmin, async (req, res) => {
+  try {
+    const status = String(req.query.status || "all").trim();
+    const telegramId = String(req.query.telegram_id || "").trim();
+    const includeLiveBalance = ["1", "true", "yes"].includes(String(req.query.include_live_balance || "").toLowerCase());
+    const params = adminListParams(req, { defaultLimit: 50, maxLimit: 100 });
+
+    if (telegramId && !isSafeTelegramId(telegramId)) {
+      return res.status(400).json({ error: "telegram_id formati noto'g'ri" });
+    }
+
+    let query = supabase
+      .from("payment_orders")
+      .select("*")
+      .eq("network", PAYMENT_NETWORK)
+      .eq("token", PAYMENT_TOKEN)
+      .order("created_at", { ascending: false })
+      .range(params.from, params.to);
+
+    if (status !== "all") query = query.eq("status", status);
+    if (telegramId) query = query.eq("telegram_id", telegramId);
+
+    const { data, error } = await query;
+    if (error) return res.status(500).json(error);
+
+    const orders = (data || []).map(normalizePaymentOrder);
+    const telegramIds = [...new Set(orders.map((order) => String(order.telegram_id || "")).filter(Boolean))];
+    const txHashes = [...new Set(orders.map((order) => String(order.tx_hash || "")).filter(Boolean))];
+    const walletAddresses = [...new Set(orders.map((order) => normalizeAddress(order.wallet_address)).filter(Boolean))];
+
+    const [txResult, withdrawResult, usersResult] = await Promise.all([
+      txHashes.length
+        ? supabase
+          .from("payment_transactions")
+          .select("id,telegram_id,network,token,to_wallet,amount,tx_hash,created_at")
+          .in("tx_hash", txHashes)
+        : Promise.resolve({ data: [], error: null }),
+      telegramIds.length
+        ? supabase
+          .from("withdraws")
+          .select("id,telegram_id,amount,wallet_type,wallet_address,status,admin_note,created_at,processed_at")
+          .in("telegram_id", telegramIds)
+          .eq("wallet_type", "TON_DEPOSIT_REFUND")
+          .order("created_at", { ascending: false })
+        : Promise.resolve({ data: [], error: null }),
+      telegramIds.length
+        ? supabase
+          .from("users")
+          .select("telegram_id,username,first_name,last_name,balance,withdraw_unlocked")
+          .in("telegram_id", telegramIds)
+        : Promise.resolve({ data: [], error: null })
+    ]);
+
+    if (txResult.error) return res.status(500).json(txResult.error);
+    if (withdrawResult.error) return res.status(500).json(withdrawResult.error);
+    if (usersResult.error) return res.status(500).json(usersResult.error);
+
+    const txByHash = new Map((txResult.data || []).map((tx) => [String(tx.tx_hash || ""), tx]));
+    const userByTelegramId = new Map((usersResult.data || []).map((user) => [String(user.telegram_id || ""), user]));
+    const refundByTelegramId = new Map();
+    for (const withdraw of withdrawResult.data || []) {
+      const id = String(withdraw.telegram_id || "");
+      if (!refundByTelegramId.has(id)) refundByTelegramId.set(id, withdraw);
+    }
+
+    const liveBalanceByWallet = new Map();
+    if (includeLiveBalance) {
+      const balanceAddresses = walletAddresses.slice(0, 25);
+      for (const address of balanceAddresses) {
+        liveBalanceByWallet.set(address, await fetchTonWalletLiveBalance(address));
+      }
+    }
+
+    const items = orders.map((order) => {
+      const tx = txByHash.get(String(order.tx_hash || "")) || null;
+      const refund = refundByTelegramId.get(String(order.telegram_id || "")) || null;
+      const user = userByTelegramId.get(String(order.telegram_id || "")) || null;
+      const paidAmount = roundTon(order.paid_amount ?? tx?.amount ?? null);
+      const requiredAmount = roundTon(order.required_amount || order.amount || PAYMENT_AMOUNT_TON);
+      const refundDisplayAmount = refund ? roundTon(refund.amount || ACTIVATION_REFUND_TON) : null;
+      const refundPayoutAmount = refund ? roundTon(ACTIVATION_PAYOUT_TON) : null;
+      const refundCompleted = ["approved", "paid", "auto_paid", "submitted", "submitted_unconfirmed"].includes(String(refund?.status || ""));
+      const expectedRetainedAfterRefund = paidAmount === null ? null : roundTon(Math.max(0, paidAmount - Number(ACTIVATION_PAYOUT_TON || 0)));
+      const currentExpectedInWallet = paidAmount === null
+        ? null
+        : roundTon(Math.max(0, paidAmount - (refundCompleted ? Number(ACTIVATION_PAYOUT_TON || 0) : 0)));
+      const liveBalance = liveBalanceByWallet.get(order.wallet_address) || null;
+
+      return {
+        id: order.id,
+        telegram_id: String(order.telegram_id || ""),
+        username: user?.username || "",
+        first_name: user?.first_name || "",
+        user_balance: user?.balance !== undefined ? Number(user.balance || 0) : null,
+        withdraw_unlocked: Boolean(user?.withdraw_unlocked),
+        status: order.status,
+        deposit_wallet: order.wallet_address || "",
+        from_wallet: order.from_wallet || "",
+        required_amount_ton: requiredAmount,
+        paid_amount_ton: paidAmount,
+        accepted_range_ton: {
+          min: Number(PAYMENT_MIN_RECEIVED_TON),
+          max: Number(PAYMENT_MAX_RECEIVED_TON)
+        },
+        expected_retained_after_refund_ton: expectedRetainedAfterRefund,
+        expected_current_wallet_hold_ton: currentExpectedInWallet,
+        wallet_live_balance_ton: liveBalance?.balance_ton ?? null,
+        wallet_live_balance_ok: liveBalance?.ok ?? false,
+        wallet_live_balance_error: liveBalance?.error || null,
+        tx_hash: order.tx_hash || tx?.tx_hash || null,
+        payment_tx_id: tx?.id || null,
+        refund_withdraw_id: refund?.id || null,
+        refund_status: refund?.status || null,
+        refund_user_visible_amount_ton: refundDisplayAmount,
+        refund_payout_amount_ton: refundPayoutAmount,
+        refund_destination_wallet: refund?.wallet_address || null,
+        refund_processed_at: refund?.processed_at || null,
+        refund_admin_note: refund?.admin_note || null,
+        created_at: order.created_at,
+        paid_at: order.paid_at || null,
+        updated_at: order.updated_at || null,
+        expires_at: order.expires_at || null
+      };
+    });
+
+    attachPaginationHeaders(res, params, items);
+
+    res.json({
+      data: items,
+      page: params.page,
+      limit: params.limit,
+      has_more: items.length >= params.limit,
+      live_balance_included: includeLiveBalance,
+      live_balance_limit: includeLiveBalance ? Math.min(walletAddresses.length, 25) : 0,
+      config: {
+        network: PAYMENT_NETWORK,
+        token: PAYMENT_TOKEN,
+        activation_deposit_ton: Number(PAYMENT_AMOUNT_TON),
+        accepted_min_ton: Number(PAYMENT_MIN_RECEIVED_TON),
+        accepted_max_ton: Number(PAYMENT_MAX_RECEIVED_TON),
+        refund_user_visible_ton: Number(ACTIVATION_REFUND_TON),
+        refund_payout_ton: Number(ACTIVATION_PAYOUT_TON),
+        expected_retained_after_refund_ton: roundTon(Number(PAYMENT_AMOUNT_TON) - Number(ACTIVATION_PAYOUT_TON || 0))
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post("/admin/payment-orders/:id/approve", requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
@@ -6105,12 +8751,25 @@ app.post("/admin/notification/send", requireAdmin, async (req, res) => {
   const missing = requireFields(req.body, ["title", "message"]);
   if (missing) return res.status(400).json({ error: missing });
 
-  const { title, message, telegram_id } = req.body;
+  const title = String(req.body.title || "").trim();
+  const message = String(req.body.message || "").trim();
+  const telegram_id = req.body.telegram_id ? String(req.body.telegram_id).trim() : "";
+
+  if (!title || title.length > ADMIN_NOTIFICATION_TITLE_MAX) {
+    return res.status(400).json({ error: `title 1-${ADMIN_NOTIFICATION_TITLE_MAX} belgi oralig'ida bo'lishi kerak` });
+  }
+  if (!message || message.length > ADMIN_NOTIFICATION_MESSAGE_MAX) {
+    return res.status(400).json({ error: `message 1-${ADMIN_NOTIFICATION_MESSAGE_MAX} belgi oralig'ida bo'lishi kerak` });
+  }
+  if (telegram_id && !isSafeTelegramId(telegram_id)) {
+    securityLog("suspicious", req, { reason: "invalid_notification_telegram_id" });
+    return res.status(400).json({ error: "telegram_id formati noto'g'ri" });
+  }
 
   const { data, error } = await supabase
     .from("notifications")
     .insert({
-      telegram_id: telegram_id ? String(telegram_id) : null,
+      telegram_id: telegram_id || null,
       title,
       message
     })
@@ -6142,13 +8801,15 @@ app.post("/webhook/fiat-payment", async (req, res) => {
     }
 
     // 2. HMAC Shifrlash orqali imzoni tekshirish (Soxta to'lovning oldini olish)
-    const payloadString = JSON.stringify(req.body);
+    const payloadString = req.rawBody || JSON.stringify(req.body);
     const expectedSignature = crypto
       .createHmac("sha512", FIAT_WEBHOOK_SECRET)
       .update(payloadString)
       .digest("hex");
 
-    if (signature !== expectedSignature) {
+    const providedSignature = String(signature).trim().replace(/^sha512=/i, "");
+    if (!safeTokenEquals(providedSignature, expectedSignature)) {
+      securityLog("webhook", req, { reason: "invalid_fiat_signature" });
       return res.status(403).json({ error: "Imzo xato (Invalid signature)" });
     }
 
@@ -6222,6 +8883,10 @@ app.post("/payment/create", async (req, res) => {
   try {
     const { telegram_id } = req.body;
     if (!telegram_id) return res.status(400).json({ error: "telegram_id kerak" });
+    if (!isSafeTelegramId(telegram_id)) {
+      securityLog("suspicious", req, { reason: "invalid_payment_create_telegram_id" });
+      return res.status(400).json({ error: "telegram_id formati noto'g'ri" });
+    }
 
     const { data: user } = await findUserByTelegramId(telegram_id);
     const depositRefund = normalizeDepositRefundStatus(await getDepositRefundWithdraw(telegram_id).catch(() => null));
@@ -6298,6 +8963,10 @@ app.post("/payment/check", async (req, res) => {
   try {
     const { telegram_id, order_id } = req.body || {};
     if (!telegram_id || !order_id) return res.status(400).json({ error: "telegram_id va order_id kerak" });
+    if (!isSafeTelegramId(telegram_id)) {
+      securityLog("suspicious", req, { reason: "invalid_payment_check_telegram_id" });
+      return res.status(400).json({ error: "telegram_id formati noto'g'ri" });
+    }
 
     const { data: order, error } = await supabase
       .from("payment_orders")
@@ -6334,6 +9003,10 @@ app.post("/payment/check", async (req, res) => {
 app.get("/payment/status/:telegram_id", async (req, res) => {
   try {
     const { telegram_id } = req.params;
+    if (!isSafeTelegramId(telegram_id)) {
+      securityLog("suspicious", req, { reason: "invalid_payment_status_telegram_id" });
+      return res.status(400).json({ error: "telegram_id formati noto'g'ri" });
+    }
     const { data: user } = await findUserByTelegramId(telegram_id);
 
     const { data: orders, error } = await supabase
@@ -6347,28 +9020,36 @@ app.get("/payment/status/:telegram_id", async (req, res) => {
 
     if (error && error.code !== "42P01") throw error;
 
-    let normalizedOrders = (orders || []).map(normalizePaymentOrder);
-    const hasOrderWallet = normalizedOrders.some((order) => order.wallet_address);
-    if (!hasOrderWallet && user && !user.withdraw_unlocked && Number(user.balance || 0) >= WALLET_UNLOCK_REQUIRED_USD) {
+    const statusNow = new Date();
+    let normalizedOrders = sortPaymentOrdersForClient((orders || []).map(normalizePaymentOrder), statusNow);
+    const hasFreshPendingWallet = normalizedOrders.some((order) =>
+      order.wallet_address && isFreshPendingPaymentOrder(order, statusNow)
+    );
+    if (!hasFreshPendingWallet && user && !user.withdraw_unlocked && Number(user.balance || 0) >= WALLET_UNLOCK_REQUIRED_USD) {
       try {
         const ensuredOrder = await createTonPaymentOrder(telegram_id);
         if (ensuredOrder?.wallet_address) {
-          normalizedOrders = [
+          normalizedOrders = sortPaymentOrdersForClient([
             ensuredOrder,
             ...normalizedOrders.filter((order) => String(order.id) !== String(ensuredOrder.id))
-          ];
+          ], statusNow);
         }
       } catch (ensureError) {
         console.warn("[payments] status wallet assignment skipped:", ensureError.message);
       }
     }
 
-    const persistentOrder = normalizedOrders.some((order) => order.wallet_address)
+    const persistentOrder = normalizedOrders.some((order) =>
+      order.wallet_address && isFreshPendingPaymentOrder(order, statusNow)
+    )
       ? null
       : await findPersistentUserPaymentOrder(telegram_id);
 
-    const responseOrders = persistentOrder ? [persistentOrder, ...normalizedOrders] : normalizedOrders;
-    const responseOrderWithWallet = responseOrders.find((order) => order.wallet_address) || responseOrders[0] || null;
+    const responseOrders = sortPaymentOrdersForClient(
+      persistentOrder ? [persistentOrder, ...normalizedOrders] : normalizedOrders,
+      statusNow
+    );
+    const responseOrderWithWallet = pickPaymentOrderForClient(responseOrders, statusNow);
 
     res.json({
       withdraw_unlocked: user?.withdraw_unlocked || false,
@@ -6520,6 +9201,15 @@ app.post("/admin/payment-scan/run", requireAdmin, async (req, res) => {
   }
 });
 
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  securityLog("suspicious", req, { reason: "unhandled_error", error: redactErrorMessage(err?.message || String(err)) });
+  return res.status(err?.status || 500).json({
+    error: err?.status && err.status < 500 ? redactErrorMessage(err.message) : "Internal server error",
+    request_id: req.requestId || null
+  });
+});
+
 /* =========================================================
    SERVERNI ISHGA TUSHIRISH
 ========================================================= */
@@ -6530,23 +9220,36 @@ function startPaymentScanner() {
   if (!PAYMENT_SCANNER_ENABLED) {
     throw new Error("[scanner] Refusing to start because PAYMENT_SCANNER_ENABLED is not true");
   }
+  const contexts = buildPaymentScannerShardContexts();
+  if (!contexts.length) {
+    throw new Error("[scanner] No scanner shard contexts were generated");
+  }
+  if (contexts.length > 1) {
+    console.log(`[scanner] Logical shard fan-out enabled: worker=${PAYMENT_SCANNER_WORKER_ID} contexts=${contexts.length} shard_count=${PAYMENT_SCANNER_SHARD_COUNT} group=${PAYMENT_SCANNER_SHARD_GROUP_INDEX} span=${PAYMENT_SCANNER_LOCAL_SHARD_SPAN}`);
+  }
   const nextDelay = () => {
     const jitter = PAYMENT_SCAN_JITTER_MS ? Math.floor(Math.random() * PAYMENT_SCAN_JITTER_MS) : 0;
     return PAYMENT_SCAN_INTERVAL_MS + jitter;
   };
-  const schedule = (delayMs = nextDelay()) => {
+  const schedule = (context, delayMs = nextDelay()) => {
     const timer = setTimeout(async () => {
+      const state = getPaymentScannerState(context);
       try {
-        await scanPendingPaymentOrders();
+        await scanPendingPaymentOrders(PAYMENT_SCAN_BATCH_SIZE, context);
       } catch (err) {
-        paymentScannerState.lastError = err.message;
+        state.lastError = err.message;
       } finally {
-        schedule(nextDelay());
+        schedule(context, nextDelay());
       }
     }, delayMs);
     timer.unref?.();
   };
-  schedule(Math.floor(Math.random() * Math.max(1, PAYMENT_SCAN_JITTER_MS || PAYMENT_SCAN_INTERVAL_MS)));
+  const initialSpreadMs = Math.max(1, PAYMENT_SCAN_JITTER_MS || PAYMENT_SCAN_INTERVAL_MS);
+  contexts.forEach((context, index) => {
+    const baseDelay = Math.floor(Math.random() * initialSpreadMs);
+    const stagger = contexts.length > 1 ? index * Math.max(25, Math.floor(initialSpreadMs / Math.max(1, contexts.length))) : 0;
+    schedule(context, baseDelay + stagger);
+  });
 }
 
 if (SCANNER_WORKER_MODE) {
