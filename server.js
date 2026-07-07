@@ -4144,9 +4144,6 @@ async function buildDepositRehearsalDbAudit(options = {}) {
   const freshPendingWithoutWallet = Number(byLabel.fresh_pending_orders_without_wallet?.count || 0);
   const countsReadable = counts.every((item) => item.ok);
   const warnings = [];
-  if (pendingTotal > 0) {
-    warnings.push(`${pendingTotal} pending payment order(s) exist; scanner should clear them automatically if funds arrive.`);
-  }
   if (pendingWithoutWallet > freshPendingWithoutWallet) {
     warnings.push(`${pendingWithoutWallet - freshPendingWithoutWallet} older pending order(s) have no wallet; they are not blocking new real-test readiness.`);
   }
