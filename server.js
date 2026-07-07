@@ -5755,6 +5755,169 @@ function buildProductionLaunchCertificationReport(snapshot, dbAudit) {
   };
 }
 
+function buildControlledRealTestAutopilotReport(snapshot, dbAudit) {
+  const certification = buildProductionLaunchCertificationReport(snapshot, dbAudit);
+  const controlRoom = buildRealTonTestControlRoomReport(snapshot, dbAudit);
+  const refundSafety = buildDepositRefundPayoutSafetyReport(snapshot, dbAudit);
+  const canary = buildCanaryRolloutReport(snapshot, dbAudit);
+  const counts = dbAudit?.counts || {};
+  const confirmedOrders24h = Number(counts.confirmed_orders_24h?.count || 0);
+  const paymentTransactions24h = Number(counts.payment_transactions_24h?.count || 0);
+  const completedRefunds24h = Number(counts.deposit_refund_withdraws_completed_24h?.count || 0);
+  const failedRefunds24h = Number(counts.deposit_refund_withdraws_failed_24h?.count || 0);
+  const staleProcessingRefunds15m = Number(counts.deposit_refund_withdraws_processing_stale_15m?.count || 0);
+  const pendingRefunds = Number(counts.deposit_refund_withdraws_pending?.count || 0);
+  const processingRefunds = Number(counts.deposit_refund_withdraws_processing?.count || 0);
+  const scannerWorkersAlive = Number(certification.observed.scanner_workers_alive || 0);
+  const activeShards = Number(certification.observed.active_shards || 0);
+  const duplicateShards = Array.isArray(certification.observed.duplicate_shards) ? certification.observed.duplicate_shards : [];
+  const availableWallets = Number(certification.observed.available_wallets || 0);
+  const remoteSignerWalletFiles = Number(certification.observed.remote_signer_wallet_files || 0);
+  const pendingOrders = Number(certification.observed.pending_orders || 0);
+  const paymentAmount = controlRoom.allowed_test_amount || {};
+  const checks = [];
+  const add = (name, ok, detail, severity = "blocker") => checks.push({ name, ok: Boolean(ok), detail: String(detail), severity });
+
+  add("technical_gates_ready", certification.technical_ready_for_1_5m === true, `status=${certification.status}, blockers=${certification.blockers.length}`);
+  add("control_room_ready", controlRoom.ok === true, `status=${controlRoom.status}, blockers=${controlRoom.blockers.length}`);
+  add("refund_safety_ready", refundSafety.ok === true, `status=${refundSafety.status}, blockers=${refundSafety.blockers.length}`);
+  add("scanner_64_alive_for_test_day", scannerWorkersAlive >= MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS, `alive=${scannerWorkersAlive}, required=${MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS}`);
+  add("active_shards_64_for_test_day", activeShards >= MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS, `active=${activeShards}, required=${MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS}`);
+  add("duplicate_shards_zero", duplicateShards.length === 0, `duplicates=${duplicateShards.length}`);
+  add("wallet_pool_buffer_positive", availableWallets >= CAPACITY_TARGET_USERS, `available=${availableWallets}, target=${CAPACITY_TARGET_USERS}`);
+  add("remote_signer_wallets_cover_pool", remoteSignerWalletFiles >= CAPACITY_TARGET_USERS, `wallet_files=${remoteSignerWalletFiles}, target=${CAPACITY_TARGET_USERS}`);
+  add("failed_refunds_zero_24h", failedRefunds24h === 0, `failed_refunds_24h=${failedRefunds24h}`);
+  add("stale_processing_refunds_zero", staleProcessingRefunds15m === 0, `stale_processing_refunds_15m=${staleProcessingRefunds15m}`);
+  add("pending_refunds_not_piling_up", pendingRefunds + processingRefunds <= 25, `pending=${pendingRefunds}, processing=${processingRefunds}`, "warning");
+  add("pending_order_backlog_small_for_manual_test", pendingOrders <= 100, `pending_orders=${pendingOrders}`, "warning");
+  add("real_deposit_signal_seen_24h", confirmedOrders24h > 0 && paymentTransactions24h > 0, `confirmed_orders_24h=${confirmedOrders24h}, payment_transactions_24h=${paymentTransactions24h}`, "manual_signal");
+  add("real_refund_signal_seen_24h", completedRefunds24h > 0, `completed_refunds_24h=${completedRefunds24h}`, "manual_signal");
+
+  const blockers = checks.filter((item) => !item.ok && item.severity === "blocker");
+  const warnings = [
+    ...checks.filter((item) => !item.ok && item.severity === "warning"),
+    ...controlRoom.warnings.map((item) => ({ ...item, source: "real_test_control_room" })),
+    ...refundSafety.warnings.map((item) => ({ ...item, source: "deposit_refund_safety" })),
+    ...certification.warnings.map((item) => ({ ...item, source: "production_launch_certification" }))
+  ];
+  const missingSignals = checks.filter((item) => !item.ok && item.severity === "manual_signal");
+  const uniqueWarnings = Array.from(new Map(warnings.map((item) => [`${item.source || "local"}:${item.name}:${item.detail}`, item])).values());
+  const readyForFirstControlledDeposit = blockers.length === 0;
+  const realTestPassed = missingSignals.length === 0;
+  const status = blockers.length
+    ? "blocked"
+    : (realTestPassed ? "real_test_passed" : (uniqueWarnings.length ? "watch_ready_for_real_test" : "ready_for_real_test"));
+
+  return {
+    status,
+    ok: readyForFirstControlledDeposit,
+    checked_at: new Date().toISOString(),
+    version: BACKEND_VERSION,
+    no_side_effects: true,
+    real_money_sent_by_this_endpoint: false,
+    safe_to_send_first_controlled_test_deposit: readyForFirstControlledDeposit,
+    real_test_passed: realTestPassed,
+    ready_for_public_launch_1_5m: certification.ready_for_public_launch_1_5m,
+    ready_for_700k_deposit_users_in_5_days: certification.ready_for_700k_deposit_users_in_5_days,
+    observed: {
+      scanner_workers_alive: scannerWorkersAlive,
+      active_shards: activeShards,
+      duplicate_shards: duplicateShards,
+      available_wallets: availableWallets,
+      wallet_buffer: availableWallets - CAPACITY_TARGET_USERS,
+      remote_signer_wallet_files: remoteSignerWalletFiles,
+      pending_orders: pendingOrders,
+      pending_refunds: pendingRefunds,
+      processing_refunds: processingRefunds,
+      confirmed_orders_24h: confirmedOrders24h,
+      payment_transactions_24h: paymentTransactions24h,
+      completed_refunds_24h: completedRefunds24h,
+      failed_refunds_24h: failedRefunds24h,
+      stale_processing_refunds_15m: staleProcessingRefunds15m,
+      final_gate_status: certification.observed.final_gate_status,
+      marketing_gate_status: certification.observed.marketing_gate_status,
+      canary_status: certification.observed.canary_status,
+      incident_status: certification.observed.incident_status,
+      security_status: certification.observed.security_status,
+      frontend_contract_status: certification.observed.frontend_contract_status
+    },
+    amount_contract: {
+      send_exactly_ton: paymentAmount.send_exactly_ton,
+      accepted_received_min_ton: paymentAmount.accepted_received_min_ton,
+      accepted_received_max_ton: paymentAmount.accepted_received_max_ton,
+      auto_refund_payout_ton: paymentAmount.auto_refund_payout_ton,
+      gas_reserve_ton: paymentAmount.gas_reserve_ton
+    },
+    phase_plan: [
+      {
+        id: "phase_1_single_user_deposit",
+        status: blockers.length ? "blocked" : (confirmedOrders24h > 0 && paymentTransactions24h > 0 ? "passed" : "ready"),
+        goal: "One fresh user gets a persistent unique TON deposit address and sends one controlled activation deposit.",
+        success_signal: "confirmed_orders_24h > 0 and payment_transactions_24h > 0"
+      },
+      {
+        id: "phase_2_single_refund",
+        status: blockers.length ? "blocked" : (completedRefunds24h > 0 ? "passed" : (confirmedOrders24h > 0 && paymentTransactions24h > 0 ? "ready" : "waiting_for_phase_1")),
+        goal: "The same user binds their own TON wallet and receives one activation deposit refund payout.",
+        success_signal: "completed_refunds_24h > 0 and failed_refunds_24h = 0"
+      },
+      {
+        id: "phase_3_small_batch_10_20",
+        status: blockers.length ? "blocked" : (realTestPassed ? "ready" : "waiting_for_real_test_pass"),
+        goal: "Run 10-20 controlled deposits across fresh users before public marketing.",
+        success_signal: "scanner stays 64/64, duplicate shards stay zero, failed refunds stay zero"
+      }
+    ],
+    operator_do_next: blockers.length
+      ? "Do not send real TON. Fix blockers first."
+      : (realTestPassed
+        ? "Real test signals are present. Continue with 10-20 small controlled users and keep this endpoint open."
+        : "Send one controlled real deposit from a fresh user, then refresh this endpoint until phase_1 and phase_2 pass."),
+    hard_stop_conditions: [
+      "scanner_workers_alive drops below 64 during deposit-day testing",
+      "active_shards drops below 64 or duplicate_shards is not empty",
+      "final_gate_status is not ready",
+      "remote signer is not ready or wallet files fall below 1.5M",
+      "wallet address is not visible to the user before sending TON",
+      "failed_refunds_24h becomes greater than 0",
+      "stale_processing_refunds_15m becomes greater than 0",
+      "pending refunds keep increasing without completed refunds"
+    ],
+    dependencies: {
+      production_launch_certification: {
+        status: certification.status,
+        blockers_count: certification.blockers.length,
+        manual_holds_count: certification.manual_holds.length,
+        warnings_count: certification.warnings.length
+      },
+      real_test_control_room: {
+        status: controlRoom.status,
+        blockers_count: controlRoom.blockers.length,
+        warnings_count: controlRoom.warnings.length
+      },
+      deposit_refund_safety: {
+        status: refundSafety.status,
+        blockers_count: refundSafety.blockers.length,
+        warnings_count: refundSafety.warnings.length
+      },
+      canary_rollout: {
+        status: canary.status,
+        next_recommended_stage: canary.next_recommended_stage,
+        active_rollback_triggers: canary.active_rollback_triggers.length
+      }
+    },
+    checks,
+    blockers,
+    missing_real_test_signals: missingSignals,
+    warnings: uniqueWarnings,
+    next_step: blockers.length
+      ? "Fix blockers before any real-money test."
+      : (realTestPassed
+        ? "Controlled real test passed; continue 10-20 user batch and monitor."
+        : "Controlled real test can begin now; refresh after deposit and refund.")
+  };
+}
+
 async function claimPendingPaymentOrdersForScan(limit, context = getPaymentScannerDefaultContext()) {
   const claimSeconds = Math.max(30, Math.ceil(Number(PAYMENT_SCAN_INTERVAL_MS || 15000) / 1000) * 4);
   const claimLimit = Math.max(1, Math.min(5000, Number(limit || PAYMENT_SCAN_BATCH_SIZE)));
@@ -6972,6 +7135,59 @@ app.get("/ops/production-launch-certification/summary", async (req, res) => {
       blockers_count: report.blockers.length,
       manual_holds_count: report.manual_holds.length,
       warnings_count: report.warnings.length,
+      next_step: report.next_step
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/controlled-real-test-autopilot", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const [snapshot, dbAudit] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force })
+    ]);
+    const report = buildControlledRealTestAutopilotReport(snapshot, dbAudit);
+    res.status(report.status === "blocked" ? 409 : 200).json(report);
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/controlled-real-test-autopilot/summary", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const [snapshot, dbAudit] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force })
+    ]);
+    const report = buildControlledRealTestAutopilotReport(snapshot, dbAudit);
+    res.status(report.status === "blocked" ? 409 : 200).json({
+      status: report.status,
+      ok: report.ok,
+      checked_at: report.checked_at,
+      version: report.version,
+      safe_to_send_first_controlled_test_deposit: report.safe_to_send_first_controlled_test_deposit,
+      real_test_passed: report.real_test_passed,
+      ready_for_public_launch_1_5m: report.ready_for_public_launch_1_5m,
+      ready_for_700k_deposit_users_in_5_days: report.ready_for_700k_deposit_users_in_5_days,
+      amount_contract: report.amount_contract,
+      observed: report.observed,
+      phase_plan: report.phase_plan,
+      blockers_count: report.blockers.length,
+      missing_real_test_signals_count: report.missing_real_test_signals.length,
+      warnings_count: report.warnings.length,
+      operator_do_next: report.operator_do_next,
       next_step: report.next_step
     });
   } catch (err) {
