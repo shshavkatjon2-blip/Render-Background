@@ -6747,6 +6747,576 @@ function buildControlledRealTestLiveWatchReport(snapshot, dbAudit, orderRefresh)
   };
 }
 
+function buildTrafficRampCommandCenterReport(snapshot, dbAudit, orderRefresh) {
+  const liveWatch = buildControlledRealTestLiveWatchReport(snapshot, dbAudit, orderRefresh);
+  const postCanaryGate = buildPostRealTestCanaryGateReport(snapshot, dbAudit, orderRefresh);
+  const canary = buildCanaryRolloutReport(snapshot, dbAudit);
+  const marketingGate = buildMarketingSpikeGate(snapshot);
+  const certification = buildProductionLaunchCertificationReport(snapshot, dbAudit);
+  const refundSafety = buildDepositRefundPayoutSafetyReport(snapshot, dbAudit);
+  const incident = buildIncidentStatusReport(snapshot);
+  const frontendContract = buildFrontendDeploymentContract();
+  const security = buildSecurityStatus();
+  const counts = dbAudit?.counts || {};
+  const scannerWorkersAlive = Number(liveWatch.observed.scanner_workers_alive || 0);
+  const activeShards = Number(liveWatch.observed.active_shards || 0);
+  const duplicateShards = Array.isArray(liveWatch.observed.duplicate_shards) ? liveWatch.observed.duplicate_shards : [];
+  const availableWallets = Number(liveWatch.observed.available_wallets || 0);
+  const walletBuffer = Number(liveWatch.observed.wallet_buffer || (availableWallets - CAPACITY_TARGET_USERS));
+  const remoteSignerWalletFiles = Number(liveWatch.observed.remote_signer_wallet_files || 0);
+  const pendingOrders = Number(liveWatch.observed.pending_orders || 0);
+  const pendingRefunds = Number(liveWatch.observed.pending_refunds || 0);
+  const processingRefunds = Number(liveWatch.observed.processing_refunds || 0);
+  const confirmedOrders24h = Number(liveWatch.observed.confirmed_orders_24h || 0);
+  const paymentTransactions24h = Number(liveWatch.observed.payment_transactions_24h || 0);
+  const completedRefunds24h = Number(liveWatch.observed.completed_refunds_24h || 0);
+  const failedRefunds24h = Number(liveWatch.observed.failed_refunds_24h || 0);
+  const staleProcessingRefunds15m = Number(liveWatch.observed.stale_processing_refunds_15m || 0);
+  const activeRefunds = pendingRefunds + processingRefunds;
+  const freshPendingWithoutWallet = Number(liveWatch.observed.fresh_pending_without_wallet || counts.fresh_pending_orders_without_wallet?.count || 0);
+  const realTestPassed = liveWatch.real_test_passed === true && postCanaryGate.real_test_passed === true;
+  const canary1Allowed = realTestPassed && liveWatch.ready_for_canary_1 === true && postCanaryGate.ready_for_canary_after_real_test === true;
+  const checks = [];
+  const add = (name, ok, detail, severity = "blocker") => checks.push({ name, ok: Boolean(ok), detail: String(detail), severity });
+
+  add("live_watch_not_stopped", liveWatch.stop_now !== true, `status=${liveWatch.status}, stop_now=${liveWatch.stop_now}`);
+  add("final_gate_ready", snapshot?.gate?.status === "ready", `status=${snapshot?.gate?.status || "unknown"}`);
+  add("non_real_test_work_complete", postCanaryGate.infra_ready_for_post_real_test_canary === true, `post_canary_status=${postCanaryGate.status}`);
+  add("certification_technical_ready", certification.technical_ready_for_1_5m === true, `status=${certification.status}, blockers=${certification.blockers.length}`);
+  add("marketing_spike_gate_ready", marketingGate.ok === true, `status=${marketingGate.status}, blockers=${marketingGate.blockers.length}`);
+  add("scanner_workers_64_alive", scannerWorkersAlive >= MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS, `alive=${scannerWorkersAlive}, required=${MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS}`);
+  add("scanner_active_shards_64", activeShards >= MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS, `active=${activeShards}, required=${MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS}`);
+  add("scanner_duplicate_shards_zero", duplicateShards.length === 0, `duplicates=${duplicateShards.join(",") || "0"}`);
+  add("redis_ready", snapshot?.redis?.ok === true && snapshot?.redis_deep?.ok === true, `redis=${Boolean(snapshot?.redis?.ok)}, deep=${Boolean(snapshot?.redis_deep?.ok)}`);
+  add("ton_signer_ready", snapshot?.ton_signer?.ok === true, `ok=${Boolean(snapshot?.ton_signer?.ok)}`);
+  add("remote_signer_wallet_files_cover_1_5m", remoteSignerWalletFiles >= CAPACITY_TARGET_USERS, `wallet_files=${remoteSignerWalletFiles}, target=${CAPACITY_TARGET_USERS}`);
+  add("wallet_capacity_1_5m_ready", availableWallets >= CAPACITY_TARGET_USERS, `available=${availableWallets}, target=${CAPACITY_TARGET_USERS}`);
+  add("wallet_buffer_positive", walletBuffer >= 0, `buffer=${walletBuffer}`);
+  add("fresh_pending_without_wallet_zero", freshPendingWithoutWallet === 0, `fresh_pending_without_wallet=${freshPendingWithoutWallet}`);
+  add("payment_backlog_under_spike_limit", pendingOrders <= MARKETING_SPIKE_MAX_PENDING_BACKLOG, `pending=${pendingOrders}, max=${MARKETING_SPIKE_MAX_PENDING_BACKLOG}`);
+  add("refund_queue_not_piling_up", activeRefunds <= 25, `pending=${pendingRefunds}, processing=${processingRefunds}`, "warning");
+  add("failed_refunds_zero_24h", failedRefunds24h === 0, `failed_refunds_24h=${failedRefunds24h}`);
+  add("stale_processing_refunds_zero", staleProcessingRefunds15m === 0, `stale_processing_refunds_15m=${staleProcessingRefunds15m}`);
+  add("incident_clear_or_watch", incident.status === "clear" || incident.status === "watch", `status=${incident.status}`);
+  add("frontend_contract_ready", frontendContract.status === "ready", `status=${frontendContract.status}`);
+  add("security_ok", security.status === "ok", `status=${security.status}`);
+  add("canary_rollback_triggers_zero", canary.active_rollback_triggers.length === 0, `active_rollback_triggers=${canary.active_rollback_triggers.length}`);
+  add("controlled_real_test_passed", realTestPassed, `phase_1=${liveWatch.phase_1_deposit_confirmed}, phase_2=${liveWatch.phase_2_refund_completed}`, "real_test_hold");
+
+  const blockers = checks.filter((item) => !item.ok && item.severity === "blocker");
+  const realTestHolds = checks.filter((item) => !item.ok && item.severity === "real_test_hold");
+  const warnings = [
+    ...checks.filter((item) => !item.ok && item.severity === "warning"),
+    ...liveWatch.warnings.map((item) => ({ ...item, source: "controlled_real_test_live_watch" })),
+    ...postCanaryGate.warnings.map((item) => ({ ...item, source: "post_real_test_canary_gate" })),
+    ...canary.warnings.map((item) => ({ ...item, source: "canary_rollout" })),
+    ...refundSafety.warnings.map((item) => ({ ...item, source: "deposit_refund_safety" }))
+  ];
+  const uniqueWarnings = Array.from(new Map(warnings.map((item) => [`${item.source || "local"}:${item.name}:${item.detail}`, item])).values());
+  const stopNow = blockers.length > 0 || liveWatch.stop_now === true || canary.active_rollback_triggers.length > 0;
+  const status = stopNow
+    ? "blocked_stop_now"
+    : (canary1Allowed
+      ? "ready_for_canary_1"
+      : (realTestHolds.length ? "waiting_for_controlled_real_test" : "watch_ready"));
+  const rampStages = [
+    {
+      id: "controlled_real_test",
+      users: 1,
+      status: realTestPassed ? "passed" : (stopNow ? "blocked" : "current_required"),
+      required_before_next: [
+        "One real 6.99 TONCOIN activation deposit is confirmed.",
+        "One activation deposit refund is completed.",
+        "failed_refunds_24h stays 0 and stale_processing_refunds_15m stays 0."
+      ],
+      promotion_endpoint: "/ops/controlled-real-test-live-watch/summary?fresh=true"
+    },
+    {
+      id: "canary_1",
+      users: 1,
+      status: canary1Allowed ? "allowed" : (stopNow ? "blocked" : "locked_until_real_test_passes"),
+      required_before_next: [
+        "Run one fresh user end-to-end after real test passes.",
+        "Keep scanner 64/64, duplicate shards zero, failed refunds zero.",
+        "Re-check this endpoint before opening canary_10_20."
+      ],
+      promotion_endpoint: "/ops/post-real-test-canary-gate/summary?fresh=true"
+    },
+    {
+      id: "canary_10_20",
+      users: "10-20",
+      status: canary1Allowed ? "locked_until_canary_1_clean" : "locked",
+      required_before_next: [
+        "10-20 fresh users complete deposit/refund checks cleanly.",
+        "No failed refund, no stale processing refund, no scanner shard drift.",
+        "No frontend wallet/address regression on Android/iOS/Windows."
+      ],
+      promotion_endpoint: "/ops/traffic-ramp-command-center/summary?fresh=true"
+    },
+    {
+      id: "canary_100",
+      users: 100,
+      status: "locked_until_10_20_clean",
+      required_before_next: [
+        "100-user canary stays clean under live monitoring.",
+        "p95 backend health remains acceptable and no backlog spike.",
+        "Wallet pool buffer remains positive."
+      ],
+      promotion_endpoint: "/ops/traffic-ramp-command-center/summary?fresh=true"
+    },
+    {
+      id: "canary_1000",
+      users: 1000,
+      status: "locked_until_100_clean",
+      required_before_next: [
+        "1000-user canary finishes without failed refunds.",
+        "Scanner remains 64/64 with duplicate_shards empty.",
+        "Support/admin notifications stay manageable."
+      ],
+      promotion_endpoint: "/ops/traffic-ramp-command-center/summary?fresh=true"
+    },
+    {
+      id: "canary_10000",
+      users: 10000,
+      status: "locked_until_1000_clean",
+      required_before_next: [
+        "Run sustained app action and payment monitoring.",
+        "Confirm Supabase/Render/Redis/remote signer stay under limits.",
+        "Do not proceed if payment backlog grows unexpectedly."
+      ],
+      promotion_endpoint: "/ops/traffic-ramp-command-center/summary?fresh=true"
+    },
+    {
+      id: "canary_100000",
+      users: 100000,
+      status: "locked_until_10000_clean",
+      required_before_next: [
+        "Run 100k staged traffic window.",
+        "Keep wallet pool buffer over emergency reserve.",
+        "Keep failed refunds at zero and stale refunds at zero."
+      ],
+      promotion_endpoint: "/ops/traffic-ramp-command-center/summary?fresh=true"
+    },
+    {
+      id: "marketing_spike_700k_5d",
+      users: MARKETING_SPIKE_TARGET_USERS_5D,
+      status: "locked_until_canary_ladder_clean",
+      required_before_next: [
+        "Only open after the canary ladder is clean.",
+        "Keep scanner workers at 64 or higher during spike.",
+        "Keep this endpoint and final-gate ready throughout the campaign."
+      ],
+      promotion_endpoint: "/ops/final-gate"
+    }
+  ];
+  const currentStage = rampStages.find((stage) => ["current_required", "allowed"].includes(stage.status)) || rampStages[0];
+  const operatorNextAction = stopNow
+    ? "STOP: do not run real test, canary, or public traffic until blockers/rollback triggers are fixed."
+    : (canary1Allowed
+      ? "Controlled real test passed. Open canary_1 only, then re-check this endpoint before any wider rollout."
+      : liveWatch.operator_next_action);
+
+  return {
+    status,
+    ok: !stopNow,
+    checked_at: new Date().toISOString(),
+    version: BACKEND_VERSION,
+    target_users: CAPACITY_TARGET_USERS,
+    marketing_spike_target_users_5d: MARKETING_SPIKE_TARGET_USERS_5D,
+    no_side_effects: true,
+    real_money_sent_by_this_endpoint: false,
+    stop_now: stopNow,
+    real_test_passed: realTestPassed,
+    ready_for_canary_1: canary1Allowed,
+    ready_for_700k_deposit_users_in_5_days_after_real_test: canary1Allowed && postCanaryGate.ready_for_700k_deposit_users_in_5_days_after_real_test === true,
+    current_stage: currentStage,
+    next_allowed_stage: canary1Allowed ? "canary_1" : "controlled_real_test",
+    observed: {
+      scanner_workers_alive: scannerWorkersAlive,
+      active_shards: activeShards,
+      duplicate_shards: duplicateShards,
+      available_wallets: availableWallets,
+      wallet_buffer: walletBuffer,
+      remote_signer_wallet_files: remoteSignerWalletFiles,
+      pending_orders: pendingOrders,
+      pending_refunds: pendingRefunds,
+      processing_refunds: processingRefunds,
+      active_refunds: activeRefunds,
+      fresh_pending_without_wallet: freshPendingWithoutWallet,
+      confirmed_orders_24h: confirmedOrders24h,
+      payment_transactions_24h: paymentTransactions24h,
+      completed_refunds_24h: completedRefunds24h,
+      failed_refunds_24h: failedRefunds24h,
+      stale_processing_refunds_15m: staleProcessingRefunds15m,
+      final_gate_status: snapshot?.gate?.status || "unknown",
+      live_watch_status: liveWatch.status,
+      post_canary_status: postCanaryGate.status,
+      canary_rollout_status: canary.status,
+      marketing_gate_status: marketingGate.status,
+      incident_status: incident.status,
+      security_status: security.status,
+      frontend_contract_status: frontendContract.status
+    },
+    ramp_stages: rampStages,
+    hard_stop_conditions: [
+      "stop_now is true",
+      "final-gate is not ready",
+      "scanner_workers_alive drops below 64",
+      "active_shards drops below 64",
+      "duplicate_shards is not empty",
+      "available_wallets drops below 1,500,000",
+      "remote_signer_wallet_files drops below 1,500,000",
+      "fresh_pending_without_wallet becomes greater than 0",
+      "failed_refunds_24h becomes greater than 0 during controlled test/canary",
+      "stale_processing_refunds_15m becomes greater than 0",
+      "canary active rollback trigger appears",
+      "incident status becomes blocked/critical",
+      "security status is not ok"
+    ],
+    rollout_policy: {
+      one_stage_at_a_time: true,
+      real_test_required_before_canary: true,
+      canary_1_required_before_10_20: true,
+      public_launch_requires_full_canary_ladder: true,
+      no_direct_jump_to_marketing_spike: true,
+      endpoint_is_read_only: true
+    },
+    dependencies: {
+      live_watch: {
+        status: liveWatch.status,
+        stop_now: liveWatch.stop_now,
+        safe_to_send_now: liveWatch.safe_to_send_now,
+        ready_for_first_deposit_after_operator_action: liveWatch.ready_for_first_deposit_after_operator_action,
+        phase_1_deposit_confirmed: liveWatch.phase_1_deposit_confirmed,
+        phase_2_refund_completed: liveWatch.phase_2_refund_completed,
+        blockers_count: liveWatch.blockers.length,
+        operator_actions_count: liveWatch.operator_actions.length,
+        warnings_count: liveWatch.warnings.length
+      },
+      post_real_test_canary_gate: {
+        status: postCanaryGate.status,
+        infra_ready_for_post_real_test_canary: postCanaryGate.infra_ready_for_post_real_test_canary,
+        ready_for_canary_after_real_test: postCanaryGate.ready_for_canary_after_real_test,
+        blockers_count: postCanaryGate.blockers.length,
+        real_test_holds_count: postCanaryGate.real_test_holds.length,
+        warnings_count: postCanaryGate.warnings.length
+      },
+      canary_rollout: {
+        status: canary.status,
+        next_recommended_stage: canary.next_recommended_stage,
+        active_rollback_triggers: canary.active_rollback_triggers.length,
+        blockers_count: canary.blockers.length,
+        warnings_count: canary.warnings.length
+      },
+      marketing_spike_gate: {
+        status: marketingGate.status,
+        ready_for_700k_deposit_users_in_5_days: marketingGate.ready_for_700k_deposit_users_in_5_days,
+        blockers_count: marketingGate.blockers.length,
+        warnings_count: marketingGate.warning_items.length
+      },
+      production_launch_certification: {
+        status: certification.status,
+        technical_ready_for_1_5m: certification.technical_ready_for_1_5m,
+        real_test_passed: certification.real_test_passed,
+        blockers_count: certification.blockers.length,
+        manual_holds_count: certification.manual_holds.length,
+        warnings_count: certification.warnings.length
+      }
+    },
+    checks,
+    blockers,
+    real_test_holds: realTestHolds,
+    warnings: uniqueWarnings,
+    operator_next_action: operatorNextAction,
+    next_step: operatorNextAction
+  };
+}
+
+function buildTrafficRampCommandCenterReport(snapshot, dbAudit, orderRefresh) {
+  const liveWatch = buildControlledRealTestLiveWatchReport(snapshot, dbAudit, orderRefresh);
+  const postCanaryGate = buildPostRealTestCanaryGateReport(snapshot, dbAudit, orderRefresh);
+  const canary = buildCanaryRolloutReport(snapshot, dbAudit);
+  const marketingGate = buildMarketingSpikeGate(snapshot);
+  const certification = buildProductionLaunchCertificationReport(snapshot, dbAudit);
+  const refundSafety = buildDepositRefundPayoutSafetyReport(snapshot, dbAudit);
+  const incident = buildIncidentStatusReport(snapshot);
+  const frontendContract = buildFrontendDeploymentContract();
+  const security = buildSecurityStatus();
+  const counts = dbAudit?.counts || {};
+  const scannerWorkersAlive = Number(liveWatch.observed.scanner_workers_alive || 0);
+  const activeShards = Number(liveWatch.observed.active_shards || 0);
+  const duplicateShards = Array.isArray(liveWatch.observed.duplicate_shards) ? liveWatch.observed.duplicate_shards : [];
+  const availableWallets = Number(liveWatch.observed.available_wallets || 0);
+  const walletBuffer = Number(liveWatch.observed.wallet_buffer || (availableWallets - CAPACITY_TARGET_USERS));
+  const remoteSignerWalletFiles = Number(liveWatch.observed.remote_signer_wallet_files || 0);
+  const pendingOrders = Number(liveWatch.observed.pending_orders || 0);
+  const pendingRefunds = Number(liveWatch.observed.pending_refunds || 0);
+  const processingRefunds = Number(liveWatch.observed.processing_refunds || 0);
+  const confirmedOrders24h = Number(liveWatch.observed.confirmed_orders_24h || 0);
+  const paymentTransactions24h = Number(liveWatch.observed.payment_transactions_24h || 0);
+  const completedRefunds24h = Number(liveWatch.observed.completed_refunds_24h || 0);
+  const failedRefunds24h = Number(liveWatch.observed.failed_refunds_24h || 0);
+  const staleProcessingRefunds15m = Number(liveWatch.observed.stale_processing_refunds_15m || 0);
+  const activeRefunds = pendingRefunds + processingRefunds;
+  const freshPendingWithoutWallet = Number(liveWatch.observed.fresh_pending_without_wallet || counts.fresh_pending_orders_without_wallet?.count || 0);
+  const realTestPassed = liveWatch.real_test_passed === true && postCanaryGate.real_test_passed === true;
+  const canary1Allowed = realTestPassed && liveWatch.ready_for_canary_1 === true && postCanaryGate.ready_for_canary_after_real_test === true;
+  const checks = [];
+  const add = (name, ok, detail, severity = "blocker") => checks.push({ name, ok: Boolean(ok), detail: String(detail), severity });
+
+  add("live_watch_not_stopped", liveWatch.stop_now !== true, `status=${liveWatch.status}, stop_now=${liveWatch.stop_now}`);
+  add("final_gate_ready", snapshot?.gate?.status === "ready", `status=${snapshot?.gate?.status || "unknown"}`);
+  add("non_real_test_work_complete", postCanaryGate.infra_ready_for_post_real_test_canary === true, `post_canary_status=${postCanaryGate.status}`);
+  add("certification_technical_ready", certification.technical_ready_for_1_5m === true, `status=${certification.status}, blockers=${certification.blockers.length}`);
+  add("marketing_spike_gate_ready", marketingGate.ok === true, `status=${marketingGate.status}, blockers=${marketingGate.blockers.length}`);
+  add("scanner_workers_64_alive", scannerWorkersAlive >= MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS, `alive=${scannerWorkersAlive}, required=${MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS}`);
+  add("scanner_active_shards_64", activeShards >= MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS, `active=${activeShards}, required=${MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS}`);
+  add("scanner_duplicate_shards_zero", duplicateShards.length === 0, `duplicates=${duplicateShards.join(",") || "0"}`);
+  add("redis_ready", snapshot?.redis?.ok === true && snapshot?.redis_deep?.ok === true, `redis=${Boolean(snapshot?.redis?.ok)}, deep=${Boolean(snapshot?.redis_deep?.ok)}`);
+  add("ton_signer_ready", snapshot?.ton_signer?.ok === true, `ok=${Boolean(snapshot?.ton_signer?.ok)}`);
+  add("remote_signer_wallet_files_cover_1_5m", remoteSignerWalletFiles >= CAPACITY_TARGET_USERS, `wallet_files=${remoteSignerWalletFiles}, target=${CAPACITY_TARGET_USERS}`);
+  add("wallet_capacity_1_5m_ready", availableWallets >= CAPACITY_TARGET_USERS, `available=${availableWallets}, target=${CAPACITY_TARGET_USERS}`);
+  add("wallet_buffer_positive", walletBuffer >= 0, `buffer=${walletBuffer}`);
+  add("fresh_pending_without_wallet_zero", freshPendingWithoutWallet === 0, `fresh_pending_without_wallet=${freshPendingWithoutWallet}`);
+  add("payment_backlog_under_spike_limit", pendingOrders <= MARKETING_SPIKE_MAX_PENDING_BACKLOG, `pending=${pendingOrders}, max=${MARKETING_SPIKE_MAX_PENDING_BACKLOG}`);
+  add("refund_queue_not_piling_up", activeRefunds <= 25, `pending=${pendingRefunds}, processing=${processingRefunds}`, "warning");
+  add("failed_refunds_zero_24h", failedRefunds24h === 0, `failed_refunds_24h=${failedRefunds24h}`);
+  add("stale_processing_refunds_zero", staleProcessingRefunds15m === 0, `stale_processing_refunds_15m=${staleProcessingRefunds15m}`);
+  add("incident_clear_or_watch", incident.status === "clear" || incident.status === "watch", `status=${incident.status}`);
+  add("frontend_contract_ready", frontendContract.status === "ready", `status=${frontendContract.status}`);
+  add("security_ok", security.status === "ok", `status=${security.status}`);
+  add("canary_rollback_triggers_zero", canary.active_rollback_triggers.length === 0, `active_rollback_triggers=${canary.active_rollback_triggers.length}`);
+  add("controlled_real_test_passed", realTestPassed, `phase_1=${liveWatch.phase_1_deposit_confirmed}, phase_2=${liveWatch.phase_2_refund_completed}`, "real_test_hold");
+
+  const blockers = checks.filter((item) => !item.ok && item.severity === "blocker");
+  const realTestHolds = checks.filter((item) => !item.ok && item.severity === "real_test_hold");
+  const warnings = [
+    ...checks.filter((item) => !item.ok && item.severity === "warning"),
+    ...liveWatch.warnings.map((item) => ({ ...item, source: "controlled_real_test_live_watch" })),
+    ...postCanaryGate.warnings.map((item) => ({ ...item, source: "post_real_test_canary_gate" })),
+    ...canary.warnings.map((item) => ({ ...item, source: "canary_rollout" })),
+    ...refundSafety.warnings.map((item) => ({ ...item, source: "deposit_refund_safety" }))
+  ];
+  const uniqueWarnings = Array.from(new Map(warnings.map((item) => [`${item.source || "local"}:${item.name}:${item.detail}`, item])).values());
+  const stopNow = blockers.length > 0 || liveWatch.stop_now === true || canary.active_rollback_triggers.length > 0;
+  const status = stopNow
+    ? "blocked_stop_now"
+    : (canary1Allowed
+      ? "ready_for_canary_1"
+      : (realTestHolds.length ? "waiting_for_controlled_real_test" : "watch_ready"));
+  const rampStages = [
+    {
+      id: "controlled_real_test",
+      users: 1,
+      status: realTestPassed ? "passed" : (stopNow ? "blocked" : "current_required"),
+      required_before_next: [
+        "One real 6.99 TONCOIN activation deposit is confirmed.",
+        "One activation deposit refund is completed.",
+        "failed_refunds_24h stays 0 and stale_processing_refunds_15m stays 0."
+      ],
+      promotion_endpoint: "/ops/controlled-real-test-live-watch/summary?fresh=true"
+    },
+    {
+      id: "canary_1",
+      users: 1,
+      status: canary1Allowed ? "allowed" : (stopNow ? "blocked" : "locked_until_real_test_passes"),
+      required_before_next: [
+        "Run one fresh user end-to-end after real test passes.",
+        "Keep scanner 64/64, duplicate shards zero, failed refunds zero.",
+        "Re-check this endpoint before opening canary_10_20."
+      ],
+      promotion_endpoint: "/ops/post-real-test-canary-gate/summary?fresh=true"
+    },
+    {
+      id: "canary_10_20",
+      users: "10-20",
+      status: canary1Allowed ? "locked_until_canary_1_clean" : "locked",
+      required_before_next: [
+        "10-20 fresh users complete deposit/refund checks cleanly.",
+        "No failed refund, no stale processing refund, no scanner shard drift.",
+        "No frontend wallet/address regression on Android/iOS/Windows."
+      ],
+      promotion_endpoint: "/ops/traffic-ramp-command-center/summary?fresh=true"
+    },
+    {
+      id: "canary_100",
+      users: 100,
+      status: "locked_until_10_20_clean",
+      required_before_next: [
+        "100-user canary stays clean under live monitoring.",
+        "p95 backend health remains acceptable and no backlog spike.",
+        "Wallet pool buffer remains positive."
+      ],
+      promotion_endpoint: "/ops/traffic-ramp-command-center/summary?fresh=true"
+    },
+    {
+      id: "canary_1000",
+      users: 1000,
+      status: "locked_until_100_clean",
+      required_before_next: [
+        "1000-user canary finishes without failed refunds.",
+        "Scanner remains 64/64 with duplicate_shards empty.",
+        "Support/admin notifications stay manageable."
+      ],
+      promotion_endpoint: "/ops/traffic-ramp-command-center/summary?fresh=true"
+    },
+    {
+      id: "canary_10000",
+      users: 10000,
+      status: "locked_until_1000_clean",
+      required_before_next: [
+        "Run sustained app action and payment monitoring.",
+        "Confirm Supabase/Render/Redis/remote signer stay under limits.",
+        "Do not proceed if payment backlog grows unexpectedly."
+      ],
+      promotion_endpoint: "/ops/traffic-ramp-command-center/summary?fresh=true"
+    },
+    {
+      id: "canary_100000",
+      users: 100000,
+      status: "locked_until_10000_clean",
+      required_before_next: [
+        "Run 100k staged traffic window.",
+        "Keep wallet pool buffer over emergency reserve.",
+        "Keep failed refunds at zero and stale refunds at zero."
+      ],
+      promotion_endpoint: "/ops/traffic-ramp-command-center/summary?fresh=true"
+    },
+    {
+      id: "marketing_spike_700k_5d",
+      users: MARKETING_SPIKE_TARGET_USERS_5D,
+      status: "locked_until_canary_ladder_clean",
+      required_before_next: [
+        "Only open after the canary ladder is clean.",
+        "Keep scanner workers at 64 or higher during spike.",
+        "Keep this endpoint and final-gate ready throughout the campaign."
+      ],
+      promotion_endpoint: "/ops/final-gate"
+    }
+  ];
+  const currentStage = rampStages.find((stage) => ["current_required", "allowed"].includes(stage.status)) || rampStages[0];
+  const operatorNextAction = stopNow
+    ? "STOP: do not run real test, canary, or public traffic until blockers/rollback triggers are fixed."
+    : (canary1Allowed
+      ? "Controlled real test passed. Open canary_1 only, then re-check this endpoint before any wider rollout."
+      : liveWatch.operator_next_action);
+
+  return {
+    status,
+    ok: !stopNow,
+    checked_at: new Date().toISOString(),
+    version: BACKEND_VERSION,
+    target_users: CAPACITY_TARGET_USERS,
+    marketing_spike_target_users_5d: MARKETING_SPIKE_TARGET_USERS_5D,
+    no_side_effects: true,
+    real_money_sent_by_this_endpoint: false,
+    stop_now: stopNow,
+    real_test_passed: realTestPassed,
+    ready_for_canary_1: canary1Allowed,
+    ready_for_700k_deposit_users_in_5_days_after_real_test: canary1Allowed && postCanaryGate.ready_for_700k_deposit_users_in_5_days_after_real_test === true,
+    current_stage: currentStage,
+    next_allowed_stage: canary1Allowed ? "canary_1" : "controlled_real_test",
+    observed: {
+      scanner_workers_alive: scannerWorkersAlive,
+      active_shards: activeShards,
+      duplicate_shards: duplicateShards,
+      available_wallets: availableWallets,
+      wallet_buffer: walletBuffer,
+      remote_signer_wallet_files: remoteSignerWalletFiles,
+      pending_orders: pendingOrders,
+      pending_refunds: pendingRefunds,
+      processing_refunds: processingRefunds,
+      active_refunds: activeRefunds,
+      fresh_pending_without_wallet: freshPendingWithoutWallet,
+      confirmed_orders_24h: confirmedOrders24h,
+      payment_transactions_24h: paymentTransactions24h,
+      completed_refunds_24h: completedRefunds24h,
+      failed_refunds_24h: failedRefunds24h,
+      stale_processing_refunds_15m: staleProcessingRefunds15m,
+      final_gate_status: snapshot?.gate?.status || "unknown",
+      live_watch_status: liveWatch.status,
+      post_canary_status: postCanaryGate.status,
+      canary_rollout_status: canary.status,
+      marketing_gate_status: marketingGate.status,
+      incident_status: incident.status,
+      security_status: security.status,
+      frontend_contract_status: frontendContract.status
+    },
+    ramp_stages: rampStages,
+    hard_stop_conditions: [
+      "stop_now is true",
+      "final-gate is not ready",
+      "scanner_workers_alive drops below 64",
+      "active_shards drops below 64",
+      "duplicate_shards is not empty",
+      "available_wallets drops below 1,500,000",
+      "remote_signer_wallet_files drops below 1,500,000",
+      "fresh_pending_without_wallet becomes greater than 0",
+      "failed_refunds_24h becomes greater than 0 during controlled test/canary",
+      "stale_processing_refunds_15m becomes greater than 0",
+      "canary active rollback trigger appears",
+      "incident status becomes blocked/critical",
+      "security status is not ok"
+    ],
+    rollout_policy: {
+      one_stage_at_a_time: true,
+      real_test_required_before_canary: true,
+      canary_1_required_before_10_20: true,
+      public_launch_requires_full_canary_ladder: true,
+      no_direct_jump_to_marketing_spike: true,
+      endpoint_is_read_only: true
+    },
+    dependencies: {
+      live_watch: {
+        status: liveWatch.status,
+        stop_now: liveWatch.stop_now,
+        safe_to_send_now: liveWatch.safe_to_send_now,
+        ready_for_first_deposit_after_operator_action: liveWatch.ready_for_first_deposit_after_operator_action,
+        phase_1_deposit_confirmed: liveWatch.phase_1_deposit_confirmed,
+        phase_2_refund_completed: liveWatch.phase_2_refund_completed,
+        blockers_count: liveWatch.blockers.length,
+        operator_actions_count: liveWatch.operator_actions.length,
+        warnings_count: liveWatch.warnings.length
+      },
+      post_real_test_canary_gate: {
+        status: postCanaryGate.status,
+        infra_ready_for_post_real_test_canary: postCanaryGate.infra_ready_for_post_real_test_canary,
+        ready_for_canary_after_real_test: postCanaryGate.ready_for_canary_after_real_test,
+        blockers_count: postCanaryGate.blockers.length,
+        real_test_holds_count: postCanaryGate.real_test_holds.length,
+        warnings_count: postCanaryGate.warnings.length
+      },
+      canary_rollout: {
+        status: canary.status,
+        next_recommended_stage: canary.next_recommended_stage,
+        active_rollback_triggers: canary.active_rollback_triggers.length,
+        blockers_count: canary.blockers.length,
+        warnings_count: canary.warnings.length
+      },
+      marketing_spike_gate: {
+        status: marketingGate.status,
+        ready_for_700k_deposit_users_in_5_days: marketingGate.ready_for_700k_deposit_users_in_5_days,
+        blockers_count: marketingGate.blockers.length,
+        warnings_count: marketingGate.warning_items.length
+      },
+      production_launch_certification: {
+        status: certification.status,
+        technical_ready_for_1_5m: certification.technical_ready_for_1_5m,
+        real_test_passed: certification.real_test_passed,
+        blockers_count: certification.blockers.length,
+        manual_holds_count: certification.manual_holds.length,
+        warnings_count: certification.warnings.length
+      }
+    },
+    checks,
+    blockers,
+    real_test_holds: realTestHolds,
+    warnings: uniqueWarnings,
+    operator_next_action: operatorNextAction,
+    next_step: operatorNextAction
+  };
+}
+
 async function claimPendingPaymentOrdersForScan(limit, context = getPaymentScannerDefaultContext()) {
   const claimSeconds = Math.max(30, Math.ceil(Number(PAYMENT_SCAN_INTERVAL_MS || 15000) / 1000) * 4);
   const claimLimit = Math.max(1, Math.min(5000, Number(limit || PAYMENT_SCAN_BATCH_SIZE)));
@@ -8111,6 +8681,64 @@ app.get("/ops/controlled-real-test-live-watch/summary", async (req, res) => {
       blockers_count: report.blockers.length,
       operator_actions_count: report.operator_actions.length,
       missing_real_test_signals_count: report.missing_real_test_signals.length,
+      warnings_count: report.warnings.length,
+      operator_next_action: report.operator_next_action,
+      next_step: report.next_step
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/traffic-ramp-command-center", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || "8188152343";
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
+    ]);
+    const report = buildTrafficRampCommandCenterReport(snapshot, dbAudit, orderRefresh);
+    res.status(report.status === "blocked_stop_now" ? 409 : 200).json(report);
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/traffic-ramp-command-center/summary", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || "8188152343";
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
+    ]);
+    const report = buildTrafficRampCommandCenterReport(snapshot, dbAudit, orderRefresh);
+    res.status(report.status === "blocked_stop_now" ? 409 : 200).json({
+      status: report.status,
+      ok: report.ok,
+      checked_at: report.checked_at,
+      version: report.version,
+      stop_now: report.stop_now,
+      real_test_passed: report.real_test_passed,
+      ready_for_canary_1: report.ready_for_canary_1,
+      ready_for_700k_deposit_users_in_5_days_after_real_test: report.ready_for_700k_deposit_users_in_5_days_after_real_test,
+      current_stage: report.current_stage,
+      next_allowed_stage: report.next_allowed_stage,
+      observed: report.observed,
+      ramp_stages: report.ramp_stages,
+      blockers_count: report.blockers.length,
+      real_test_holds_count: report.real_test_holds.length,
       warnings_count: report.warnings.length,
       operator_next_action: report.operator_next_action,
       next_step: report.next_step
