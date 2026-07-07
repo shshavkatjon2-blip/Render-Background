@@ -562,6 +562,9 @@ const REDIS_HEALTH_CACHE_TTL_MS = Math.max(0, Math.min(30000, Number(process.env
 const SCALE_AUDIT_COUNT_MODE = ["exact", "planned", "estimated"].includes(String(process.env.SCALE_AUDIT_COUNT_MODE || "").trim().toLowerCase())
   ? String(process.env.SCALE_AUDIT_COUNT_MODE).trim().toLowerCase()
   : "planned";
+const DEPOSIT_REHEARSAL_COUNT_MODE = ["exact", "planned", "estimated"].includes(String(process.env.DEPOSIT_REHEARSAL_COUNT_MODE || "").trim().toLowerCase())
+  ? String(process.env.DEPOSIT_REHEARSAL_COUNT_MODE).trim().toLowerCase()
+  : "exact";
 const REQUIRE_TON_AUTO_PAYOUT_FOR_1_5M = process.env.REQUIRE_TON_AUTO_PAYOUT_FOR_1_5M !== "false";
 const FINAL_GATE_MIN_SCANNER_WORKERS = Math.max(1, Math.min(2048, Number(process.env.FINAL_GATE_MIN_SCANNER_WORKERS || CAPACITY_3M_MIN_SCANNER_WORKERS)));
 const WALLET_POOL_BUFFER = Math.max(0, Math.min(5000000, Number(process.env.WALLET_POOL_BUFFER || 0)));
@@ -3929,10 +3932,11 @@ function withOpsTimeout(promise, label) {
   ]);
 }
 
-async function safeSupabaseCount(table, label, applyQuery = (query) => query) {
+async function safeSupabaseCount(table, label, applyQuery = (query) => query, options = {}) {
   try {
+    const countMode = options.countMode || SCALE_AUDIT_COUNT_MODE;
     const query = applyQuery(supabase.from(table).select("*", {
-      count: SCALE_AUDIT_COUNT_MODE,
+      count: countMode,
       head: true
     }));
     const { count, error } = await withOpsTimeout(query, label);
@@ -3950,7 +3954,7 @@ async function safeSupabaseCount(table, label, applyQuery = (query) => query) {
       label,
       table,
       count: Number(count || 0),
-      mode: SCALE_AUDIT_COUNT_MODE
+      mode: countMode
     };
   } catch (err) {
     return {
@@ -4084,50 +4088,52 @@ async function buildDepositRehearsalDbAudit(options = {}) {
   const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
   const freshWindowMinutes = Math.max(PAYMENT_ORDER_TTL_MINUTES + PAYMENT_LATE_GRACE_MINUTES, 45);
   const freshWindowIso = new Date(now.getTime() - freshWindowMinutes * 60 * 1000).toISOString();
+  const depositAuditCount = (table, label, applyQuery) =>
+    safeSupabaseCount(table, label, applyQuery, { countMode: DEPOSIT_REHEARSAL_COUNT_MODE });
   const counts = await Promise.all([
-    safeSupabaseCount("payment_orders", "pending_orders_total", (query) => query
+    depositAuditCount("payment_orders", "pending_orders_total", (query) => query
       .eq("status", "pending")
       .eq("network", PAYMENT_NETWORK)
       .eq("token", PAYMENT_TOKEN)),
-    safeSupabaseCount("payment_orders", "pending_orders_with_wallet", (query) => query
+    depositAuditCount("payment_orders", "pending_orders_with_wallet", (query) => query
       .eq("status", "pending")
       .eq("network", PAYMENT_NETWORK)
       .eq("token", PAYMENT_TOKEN)
       .not("wallet_address", "is", null)),
-    safeSupabaseCount("payment_orders", "pending_orders_without_wallet", (query) => query
+    depositAuditCount("payment_orders", "pending_orders_without_wallet", (query) => query
       .eq("status", "pending")
       .eq("network", PAYMENT_NETWORK)
       .eq("token", PAYMENT_TOKEN)
       .is("wallet_address", null)),
-    safeSupabaseCount("payment_orders", "fresh_pending_orders_without_wallet", (query) => query
+    depositAuditCount("payment_orders", "fresh_pending_orders_without_wallet", (query) => query
       .eq("status", "pending")
       .eq("network", PAYMENT_NETWORK)
       .eq("token", PAYMENT_TOKEN)
       .is("wallet_address", null)
       .gte("created_at", freshWindowIso)),
-    safeSupabaseCount("payment_orders", "confirmed_orders_24h", (query) => query
+    depositAuditCount("payment_orders", "confirmed_orders_24h", (query) => query
       .eq("status", "confirmed")
       .eq("network", PAYMENT_NETWORK)
       .eq("token", PAYMENT_TOKEN)
       .gte("paid_at", oneDayAgo)),
-    safeSupabaseCount("payment_transactions", "payment_transactions_24h", (query) => query
+    depositAuditCount("payment_transactions", "payment_transactions_24h", (query) => query
       .eq("network", PAYMENT_NETWORK)
       .eq("token", PAYMENT_TOKEN)
       .gte("created_at", oneDayAgo)),
-    safeSupabaseCount("withdraws", "deposit_refund_withdraws_pending", (query) => query
+    depositAuditCount("withdraws", "deposit_refund_withdraws_pending", (query) => query
       .eq("wallet_type", "TON_DEPOSIT_REFUND")
       .eq("status", "pending")),
-    safeSupabaseCount("withdraws", "deposit_refund_withdraws_processing", (query) => query
+    depositAuditCount("withdraws", "deposit_refund_withdraws_processing", (query) => query
       .eq("wallet_type", "TON_DEPOSIT_REFUND")
       .eq("status", "processing")),
-    safeSupabaseCount("withdraws", "deposit_refund_withdraws_active", (query) => query
+    depositAuditCount("withdraws", "deposit_refund_withdraws_active", (query) => query
       .eq("wallet_type", "TON_DEPOSIT_REFUND")
       .in("status", ["pending", "processing"])),
-    safeSupabaseCount("withdraws", "deposit_refund_withdraws_completed_24h", (query) => query
+    depositAuditCount("withdraws", "deposit_refund_withdraws_completed_24h", (query) => query
       .eq("wallet_type", "TON_DEPOSIT_REFUND")
       .in("status", ["approved", "paid", "auto_paid"])
       .gte("created_at", oneDayAgo)),
-    safeSupabaseCount("withdraws", "deposit_refund_withdraws_failed_24h", (query) => query
+    depositAuditCount("withdraws", "deposit_refund_withdraws_failed_24h", (query) => query
       .eq("wallet_type", "TON_DEPOSIT_REFUND")
       .in("status", ["rejected", "failed"])
       .gte("created_at", oneDayAgo))
@@ -4149,7 +4155,7 @@ async function buildDepositRehearsalDbAudit(options = {}) {
     checked_at: now.toISOString(),
     lookback_hours: 24,
     fresh_window_minutes: freshWindowMinutes,
-    count_mode: SCALE_AUDIT_COUNT_MODE,
+    count_mode: DEPOSIT_REHEARSAL_COUNT_MODE,
     timeout_ms: OPS_DB_AUDIT_TIMEOUT_MS,
     counts: byLabel,
     counts_readable: countsReadable,
