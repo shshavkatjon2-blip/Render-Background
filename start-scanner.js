@@ -21,6 +21,8 @@ function hasRealValue(name) {
 const missing = REQUIRED.filter((name) => !hasRealValue(name));
 const shardCount = Math.max(1, Number(process.env.PAYMENT_SCANNER_SHARD_COUNT || 1));
 const shardIndex = Number(process.env.PAYMENT_SCANNER_SHARD_INDEX || 0);
+const localShardSpan = Math.max(1, Math.floor(Number(process.env.PAYMENT_SCANNER_LOCAL_SHARD_SPAN || process.env.PAYMENT_SCANNER_VIRTUAL_SHARDS_PER_WORKER || 1)));
+const shardGroupIndex = Math.max(0, Math.floor(Number(process.env.PAYMENT_SCANNER_SHARD_GROUP_INDEX ?? process.env.PAYMENT_SCANNER_SHARD_INDEX ?? 0)));
 
 if (missing.length) {
   console.error("[scanner] Cannot start VidiPay payment scanner.");
@@ -36,8 +38,26 @@ if (!Number.isInteger(shardCount) || !Number.isInteger(shardIndex) || shardIndex
   process.exit(1);
 }
 
+if (!Number.isInteger(localShardSpan) || localShardSpan < 1) {
+  console.error("[scanner] Invalid logical shard env.");
+  console.error("[scanner] PAYMENT_SCANNER_LOCAL_SHARD_SPAN must be a positive integer");
+  process.exit(1);
+}
+
+if (localShardSpan > 1 && shardGroupIndex * localShardSpan >= shardCount) {
+  console.error("[scanner] Invalid logical shard group env.");
+  console.error("[scanner] PAYMENT_SCANNER_SHARD_GROUP_INDEX * PAYMENT_SCANNER_LOCAL_SHARD_SPAN must be lower than PAYMENT_SCANNER_SHARD_COUNT");
+  process.exit(1);
+}
+
 console.log("[scanner] Starting VidiPay payment scanner worker");
 console.log(`[scanner] Shard ${shardIndex + 1}/${shardCount}`);
+if (localShardSpan > 1) {
+  const firstShard = shardGroupIndex * localShardSpan;
+  const lastShard = Math.min(shardCount - 1, firstShard + localShardSpan - 1);
+  console.log(`[scanner] Logical shard fan-out ${firstShard}-${lastShard}/${shardCount} span=${localShardSpan} group=${shardGroupIndex}`);
+}
+console.log("[scanner] Root start file active: start-scanner.js");
 console.log("[scanner] Expected heartbeat endpoint: /scanner/healthz -> status=ok");
 
 const candidates = [
