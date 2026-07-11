@@ -36,7 +36,8 @@ app.set("trust proxy", Number(process.env.TRUST_PROXY_HOPS || 1));
 const BACKEND_VERSION = "v1.8.2-infra-autopilot-20260628";
 const SECURITY_PATCH_VERSION = "security-frontend-guard-20260703";
 const DEPLOYMENT_GUARD_VERSION = "deployment-guard-20260703";
-const REAL_TEST_ASSIGNMENT_PATCH_VERSION = "real-test-wallet-assignment-v8-20260706";
+const REAL_TEST_ASSIGNMENT_PATCH_VERSION = "real-test-wallet-assignment-v9-mnemonic-pool-20260708";
+const DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID = String(process.env.CONTROLLED_REAL_TEST_TELEGRAM_ID || "8036309658");
 const PROCESS_STARTED_AT = new Date();
 const JSON_BODY_LIMIT = String(process.env.JSON_BODY_LIMIT || "128kb");
 const ALLOW_UNLISTED_CORS_ORIGINS = process.env.ALLOW_UNLISTED_CORS_ORIGINS === "true";
@@ -100,6 +101,12 @@ const TONAPI_BASE_URL = (process.env.TONAPI_BASE_URL || "https://tonapi.io").rep
 const PAYMENT_NETWORK = "TON";
 const PAYMENT_TOKEN = "TON";
 const PAYMENT_TOKEN_DECIMALS = 9;
+const PAYMENT_REQUIRED_WALLET_POOL_TAG = String(
+  process.env.PAYMENT_REQUIRED_WALLET_POOL_TAG ||
+  process.env.PAYMENT_WALLET_POOL_TAG ||
+  "mnemonic_24_20260705"
+).trim();
+const PAYMENT_REQUIRE_MNEMONIC_WALLET_POOL = process.env.PAYMENT_REQUIRE_MNEMONIC_WALLET_POOL !== "false";
 const PAYMENT_AMOUNT_TON = formatTokenAmount(process.env.ACTIVATION_DEPOSIT_TON || process.env.TON_PAYMENT_AMOUNT || "6.99");
 const PAYMENT_MIN_RECEIVED_TON = formatTokenAmount(process.env.TON_PAYMENT_MIN_RECEIVED || "6.90");
 const PAYMENT_MAX_RECEIVED_TON = formatTokenAmount(process.env.TON_PAYMENT_MAX_RECEIVED || "7.05");
@@ -126,9 +133,22 @@ const GROWTH_CHECKPOINT_1499_USD = Math.max(0, Number(process.env.GROWTH_CHECKPO
 const GROWTH_CHECKPOINT_499_REFERRALS = Math.max(1, Number(process.env.GROWTH_CHECKPOINT_499_REFERRALS || "2"));
 const GROWTH_CHECKPOINT_1499_REFERRALS = Math.max(GROWTH_CHECKPOINT_499_REFERRALS, Number(process.env.GROWTH_CHECKPOINT_1499_REFERRALS || "3"));
 const MAIN_WITHDRAW_REFERRALS = Math.max(GROWTH_CHECKPOINT_1499_REFERRALS, Number(process.env.MAIN_WITHDRAW_REFERRALS || "4"));
-const PAYMENT_ORDER_TTL_MINUTES = Math.max(1, Number(process.env.PAYMENT_ORDER_TTL_MINUTES || 5));
+const PAYMENT_ORDER_TTL_MINUTES = Math.max(15, Number(process.env.PAYMENT_ORDER_TTL_MINUTES || 15));
 const PAYMENT_LATE_GRACE_MINUTES = Math.max(5, Number(process.env.PAYMENT_LATE_GRACE_MINUTES || 30));
 const PAYMENT_WALLET_COOLDOWN_MINUTES = Math.max(PAYMENT_LATE_GRACE_MINUTES, Number(process.env.PAYMENT_WALLET_COOLDOWN_MINUTES || 30));
+const REFUND_FAILURE_AUDIT_START_RAW = String(process.env.REFUND_FAILURE_AUDIT_START_AT || "2026-07-08T01:20:00.000Z").trim();
+const REFUND_FAILURE_AUDIT_START_MS = Number.isNaN(new Date(REFUND_FAILURE_AUDIT_START_RAW).getTime())
+  ? 0
+  : new Date(REFUND_FAILURE_AUDIT_START_RAW).getTime();
+const CANARY_1_REQUIRED_FRESH_SUCCESS_USERS = Math.max(1, Math.min(5, Number(process.env.CANARY_1_REQUIRED_FRESH_SUCCESS_USERS || 1)));
+const CANARY_10_20_TARGET_MIN_USERS = Math.max(2, Math.min(20, Number(process.env.CANARY_10_20_TARGET_MIN_USERS || 10)));
+const CANARY_10_20_TARGET_MAX_USERS = Math.max(CANARY_10_20_TARGET_MIN_USERS, Math.min(50, Number(process.env.CANARY_10_20_TARGET_MAX_USERS || 20)));
+const CANARY_100_REQUIRED_CLEAN_USERS = Math.max(CANARY_10_20_TARGET_MIN_USERS, Math.min(100, Number(process.env.CANARY_100_REQUIRED_CLEAN_USERS || 10)));
+const CANARY_1000_REQUIRED_CLEAN_USERS = Math.max(CANARY_100_REQUIRED_CLEAN_USERS, Math.min(1000, Number(process.env.CANARY_1000_REQUIRED_CLEAN_USERS || 100)));
+const CANARY_10000_REQUIRED_CLEAN_USERS = Math.max(CANARY_1000_REQUIRED_CLEAN_USERS, Math.min(10000, Number(process.env.CANARY_10000_REQUIRED_CLEAN_USERS || 1000)));
+const CANARY_100000_REQUIRED_CLEAN_USERS = Math.max(CANARY_10000_REQUIRED_CLEAN_USERS, Math.min(100000, Number(process.env.CANARY_100000_REQUIRED_CLEAN_USERS || 10000)));
+const CANARY_REFUND_STALE_MINUTES = Math.max(5, Math.min(60, Number(process.env.CANARY_REFUND_STALE_MINUTES || 15)));
+const CANARY_SIGNAL_LOOKBACK_HOURS = Math.max(6, Math.min(168, Number(process.env.CANARY_SIGNAL_LOOKBACK_HOURS || 72)));
 const PAYMENT_SCAN_INTERVAL_MS = Math.max(1000, Number(process.env.PAYMENT_SCAN_INTERVAL_MS || 3000));
 const PAYMENT_SCAN_BATCH_SIZE = Math.max(1, Math.min(5000, Number(process.env.PAYMENT_SCAN_BATCH_SIZE || 500)));
 const PAYMENT_SCAN_CONCURRENCY = Math.max(1, Math.min(128, Number(process.env.PAYMENT_SCAN_CONCURRENCY || 32)));
@@ -569,11 +589,28 @@ const REQUIRE_TON_AUTO_PAYOUT_FOR_1_5M = process.env.REQUIRE_TON_AUTO_PAYOUT_FOR
 const FINAL_GATE_MIN_SCANNER_WORKERS = Math.max(1, Math.min(2048, Number(process.env.FINAL_GATE_MIN_SCANNER_WORKERS || CAPACITY_3M_MIN_SCANNER_WORKERS)));
 const WALLET_POOL_BUFFER = Math.max(0, Math.min(5000000, Number(process.env.WALLET_POOL_BUFFER || 0)));
 const MARKETING_SPIKE_TARGET_USERS_5D = Math.max(1, Number(process.env.MARKETING_SPIKE_TARGET_USERS_5D || 700000));
+const MARKETING_SPIKE_700K_REQUIRED_CLEAN_USERS = Math.max(CANARY_100000_REQUIRED_CLEAN_USERS, Math.min(MARKETING_SPIKE_TARGET_USERS_5D, Number(process.env.MARKETING_SPIKE_700K_REQUIRED_CLEAN_USERS || 100000)));
 const MARKETING_SPIKE_MIN_SCANNER_WORKERS = Math.max(FINAL_GATE_MIN_SCANNER_WORKERS, Math.min(2048, Number(process.env.MARKETING_SPIKE_MIN_SCANNER_WORKERS || 32)));
 const MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS = Math.max(MARKETING_SPIKE_MIN_SCANNER_WORKERS, Math.min(2048, Number(process.env.MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS || 64)));
 const MARKETING_SPIKE_MIN_ACTIVE_SHARDS = Math.max(1, Math.min(MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS, Number(process.env.MARKETING_SPIKE_MIN_ACTIVE_SHARDS || MARKETING_SPIKE_MIN_SCANNER_WORKERS)));
 const MARKETING_SPIKE_MAX_PENDING_BACKLOG = Math.max(0, Number(process.env.MARKETING_SPIKE_MAX_PENDING_BACKLOG || 5000));
 const MARKETING_SPIKE_GATE_VERSION = "marketing-spike-gate-700k-5d-20260706";
+const PRE_CANARY_HOLD_HOURS = Math.max(1, Math.min(72, Number(process.env.PRE_CANARY_HOLD_HOURS || 12)));
+const OPS_ROLLBACK_MAX_FAILED_REFUNDS_24H = Math.max(0, Number(process.env.OPS_ROLLBACK_MAX_FAILED_REFUNDS_24H || 0));
+const OPS_ROLLBACK_MAX_STALE_REFUNDS_15M = Math.max(0, Number(process.env.OPS_ROLLBACK_MAX_STALE_REFUNDS_15M || 0));
+const OPS_LOAD_GUARD_MAX_ACTIVE_REFUNDS = Math.max(1, Math.min(10000, Number(process.env.OPS_LOAD_GUARD_MAX_ACTIVE_REFUNDS || 25)));
+const OPS_LOAD_GUARD_MAX_PENDING_ORDERS = Math.max(0, Number(process.env.OPS_LOAD_GUARD_MAX_PENDING_ORDERS || MARKETING_SPIKE_MAX_PENDING_BACKLOG));
+const OPS_LOAD_GUARD_MAX_HEAP_USED_MB = Math.max(64, Number(process.env.OPS_LOAD_GUARD_MAX_HEAP_USED_MB || 768));
+const OPS_LOAD_GUARD_MAX_ACTIVE_REQUESTS = Math.max(1, Number(process.env.OPS_LOAD_GUARD_MAX_ACTIVE_REQUESTS || 50));
+const LOAD_GATE_VERSION = "load-gate-10k-100k-20260710";
+const LOAD_GATE_10K_TARGET_USERS = Math.max(10000, Number(process.env.LOAD_GATE_10K_TARGET_USERS || 10000));
+const LOAD_GATE_100K_TARGET_USERS = Math.max(LOAD_GATE_10K_TARGET_USERS, Number(process.env.LOAD_GATE_100K_TARGET_USERS || 100000));
+const LOAD_GATE_10K_MIN_SCANNER_WORKERS = Math.max(MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS, Math.min(2048, Number(process.env.LOAD_GATE_10K_MIN_SCANNER_WORKERS || 64)));
+const LOAD_GATE_100K_MIN_SCANNER_WORKERS = Math.max(LOAD_GATE_10K_MIN_SCANNER_WORKERS, Math.min(2048, Number(process.env.LOAD_GATE_100K_MIN_SCANNER_WORKERS || 64)));
+const LOAD_GATE_100K_RECOMMENDED_SCANNER_WORKERS = Math.max(LOAD_GATE_100K_MIN_SCANNER_WORKERS, Math.min(2048, Number(process.env.LOAD_GATE_100K_RECOMMENDED_SCANNER_WORKERS || 128)));
+const LOAD_GATE_MAX_P95_MS = Math.max(250, Number(process.env.LOAD_GATE_MAX_P95_MS || 3500));
+const LOAD_GATE_MAX_FAILURES = Math.max(0, Number(process.env.LOAD_GATE_MAX_FAILURES || 0));
+const LOAD_GATE_EVIDENCE_MAX_AGE_HOURS = Math.max(1, Math.min(168, Number(process.env.LOAD_GATE_EVIDENCE_MAX_AGE_HOURS || 24)));
 function getRequiredActiveScannerShards() {
   const configuredShardCount = Math.max(1, Number(PAYMENT_SCANNER_SHARD_COUNT || FINAL_GATE_MIN_SCANNER_WORKERS || 4));
   const desiredShardCoverage = Math.max(FINAL_GATE_MIN_SCANNER_WORKERS, MARKETING_SPIKE_MIN_ACTIVE_SHARDS || 0);
@@ -1084,6 +1121,77 @@ function isLikelyTonAddress(value) {
   return Boolean(decodeTonAddressToRaw(value));
 }
 
+function requiresMnemonicPaymentWalletPool() {
+  return Boolean(PAYMENT_REQUIRE_MNEMONIC_WALLET_POOL && PAYMENT_REQUIRED_WALLET_POOL_TAG);
+}
+
+function paymentWalletPoolTagMatches(wallet) {
+  if (!requiresMnemonicPaymentWalletPool()) return true;
+  return String(wallet?.wallet_pool_tag || "").trim() === PAYMENT_REQUIRED_WALLET_POOL_TAG;
+}
+
+function applyPaymentWalletPoolTagFilter(query) {
+  return requiresMnemonicPaymentWalletPool()
+    ? query.eq("wallet_pool_tag", PAYMENT_REQUIRED_WALLET_POOL_TAG)
+    : query;
+}
+
+function isPaymentWalletEligible(wallet, options = {}) {
+  if (!wallet?.address || !isLikelyTonAddress(wallet.address)) return false;
+  if (wallet.is_active === false) return false;
+  if (String(wallet.network || PAYMENT_NETWORK) !== PAYMENT_NETWORK) return false;
+  if (String(wallet.token || PAYMENT_TOKEN) !== PAYMENT_TOKEN) return false;
+  if (options.requireUnassigned && wallet.assigned_to_telegram_id) return false;
+  return paymentWalletPoolTagMatches(wallet);
+}
+
+async function releaseIneligiblePaymentWalletAssignments(telegramId, nowIso = new Date().toISOString()) {
+  if (!requiresMnemonicPaymentWalletPool()) return { released: 0, legacy_count: 0 };
+
+  const userId = String(telegramId);
+  const { data, error } = await supabase
+    .from("payment_wallets")
+    .select("id,address,network,token,is_active,wallet_pool_tag,assigned_to_telegram_id")
+    .eq("assigned_to_telegram_id", userId);
+
+  if (error) {
+    if (["42P01", "42703", "PGRST116"].includes(error.code)) {
+      return { released: 0, legacy_count: 0, skipped: error.code };
+    }
+    throw error;
+  }
+
+  const legacyWallets = (data || []).filter((wallet) => !isPaymentWalletEligible(wallet));
+  let released = 0;
+  for (const wallet of legacyWallets) {
+    const { error: releaseError } = await supabase
+      .from("payment_wallets")
+      .update({
+        assigned_to_telegram_id: null,
+        assigned_order_id: null,
+        assigned_until: null,
+        cooldown_until: nowIso,
+        updated_at: nowIso
+      })
+      .eq("id", wallet.id)
+      .eq("assigned_to_telegram_id", userId);
+
+    if (releaseError) {
+      if (isStatementTimeoutError(releaseError)) {
+        console.warn("[payments] legacy wallet release timed out; continuing mnemonic claim path");
+        continue;
+      }
+      throw releaseError;
+    }
+    released += 1;
+  }
+
+  if (released > 0) {
+    console.warn(`[payments] released ${released} legacy non-mnemonic wallet assignment(s) for user ${userId}`);
+  }
+  return { released, legacy_count: legacyWallets.length };
+}
+
 function isUuidLike(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
 }
@@ -1157,6 +1265,67 @@ function parseTonBalanceUnits(value) {
     return null;
   }
   return null;
+}
+
+function tonUnitsToNumber(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  try {
+    if (/^\d+\.\d+$/.test(raw)) return Number(raw);
+    if (/^\d+$/.test(raw)) return Number(unitsToDecimalString(raw, PAYMENT_TOKEN_DECIMALS));
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function isPotentialTonPayoutSubmissionError(error) {
+  const message = String(error?.message || error || "").toLowerCase();
+  return Boolean(
+    error?.payoutSubmitted ||
+    message.includes("aborted") ||
+    message.includes("aborterror") ||
+    message.includes("timeout") ||
+    message.includes("timed out") ||
+    message.includes("seqno") ||
+    message.includes("socket hang up") ||
+    message.includes("econnreset") ||
+    message.includes("network")
+  );
+}
+
+function isRetryableTonPayoutError(error) {
+  const message = String(error?.message || error || "").toLowerCase();
+  const status = Number(error?.status || error?.statusCode || error?.response?.status || 0);
+  return Boolean(
+    error?.retryablePayoutFailure ||
+    status === 408 ||
+    status === 425 ||
+    status === 429 ||
+    status === 500 ||
+    status === 502 ||
+    status === 503 ||
+    status === 504 ||
+    message.includes("429") ||
+    message.includes("rate limit") ||
+    message.includes("too many requests") ||
+    message.includes("request failed with status code 429") ||
+    message.includes("timeout") ||
+    message.includes("timed out") ||
+    message.includes("aborted") ||
+    message.includes("aborterror") ||
+    message.includes("socket hang up") ||
+    message.includes("econnreset") ||
+    message.includes("etimedout") ||
+    message.includes("fetch failed") ||
+    message.includes("temporarily unavailable") ||
+    message.includes("service unavailable") ||
+    message.includes("bad gateway") ||
+    message.includes("gateway timeout") ||
+    message.includes("remote signer http 502") ||
+    message.includes("remote signer http 503") ||
+    message.includes("remote signer http 504")
+  );
 }
 
 function readTonAccountBalanceUnits(payload) {
@@ -1338,25 +1507,29 @@ async function buildRealTestOrderRefreshOpsReport(telegramId) {
   const freshPendingWithWallet = orders.find((order) => order.wallet_address && isFreshPendingPaymentOrder(order, now)) || null;
   const staleSelected = Boolean(selectedOrder && selectedOrder.wallet_address && !isFreshPendingPaymentOrder(selectedOrder, now) && selectedOrder.status !== "confirmed");
 
-  const { data: strictAssignedWallet, error: walletError } = await supabase
+  let assignedWalletQuery = supabase
     .from("payment_wallets")
     .select("id,address,assigned_to_telegram_id,assigned_order_id,assigned_until,last_assigned_at,is_active,wallet_pool_tag")
     .eq("network", PAYMENT_NETWORK)
     .eq("token", PAYMENT_TOKEN)
     .eq("assigned_to_telegram_id", telegram)
-    .eq("is_active", true)
+    .eq("is_active", true);
+  assignedWalletQuery = applyPaymentWalletPoolTagFilter(assignedWalletQuery);
+  const { data: strictAssignedWallet, error: walletError } = await assignedWalletQuery
     .order("last_assigned_at", { ascending: false, nullsFirst: false })
     .limit(1)
     .maybeSingle();
 
   if (walletError && !["42P01", "42703", "PGRST116"].includes(walletError.code)) throw walletError;
   let assignedWallet = strictAssignedWallet || null;
-  if (!assignedWallet && (!walletError || ["PGRST116"].includes(walletError.code))) {
-    const { data: relaxedAssignedWallet, error: relaxedWalletError } = await supabase
+  if (!assignedWallet && !requiresMnemonicPaymentWalletPool() && (!walletError || ["PGRST116"].includes(walletError.code))) {
+    let relaxedAssignedWalletQuery = supabase
       .from("payment_wallets")
       .select("id,address,assigned_to_telegram_id,assigned_order_id,assigned_until,last_assigned_at,is_active,wallet_pool_tag,network,token")
       .eq("assigned_to_telegram_id", telegram)
-      .eq("is_active", true)
+      .eq("is_active", true);
+    relaxedAssignedWalletQuery = applyPaymentWalletPoolTagFilter(relaxedAssignedWalletQuery);
+    const { data: relaxedAssignedWallet, error: relaxedWalletError } = await relaxedAssignedWalletQuery
       .order("last_assigned_at", { ascending: false, nullsFirst: false })
       .limit(1)
       .maybeSingle();
@@ -1366,6 +1539,8 @@ async function buildRealTestOrderRefreshOpsReport(telegramId) {
   }
   const walletPoolProbe = await buildRealTestWalletPoolProbe(telegram, selectedOrder);
   const assignedWalletPresent = Boolean(assignedWallet?.address);
+  const selectedOrderWalletRequiredPool = !selectedOrder?.wallet_address ||
+    walletPoolProbe.selected_wallet_in_pool?.required_pool === true;
   const modalRefreshCanRepair = Boolean(
     eligible &&
     assignedWalletPresent &&
@@ -1374,6 +1549,14 @@ async function buildRealTestOrderRefreshOpsReport(telegramId) {
   );
 
   add("assigned_wallet_present", assignedWalletPresent, assignedWallet?.address ? `prefix=${assignedWallet.address.slice(0, 8)}` : "missing", eligible ? "blocker" : "warning");
+  add(
+    "selected_order_wallet_from_required_pool",
+    selectedOrderWalletRequiredPool || Boolean(user?.withdraw_unlocked) || modalRefreshCanRepair,
+    selectedOrder?.wallet_address
+      ? `required=${PAYMENT_REQUIRED_WALLET_POOL_TAG || "none"}, actual=${walletPoolProbe.selected_wallet_in_pool?.wallet_pool_tag || "missing"}`
+      : "no selected wallet yet",
+    eligible && !modalRefreshCanRepair ? "blocker" : "warning"
+  );
   add(
     "fresh_pending_order_with_wallet",
     Boolean(freshPendingWithWallet) || Boolean(user?.withdraw_unlocked) || modalRefreshCanRepair,
@@ -1394,6 +1577,7 @@ async function buildRealTestOrderRefreshOpsReport(telegramId) {
     add("operator_must_open_deposit_modal_to_refresh_order", false, "open the wallet/deposit modal before sending TON", "operator_action");
   }
 
+  const refundSignal = await buildControlledRealTestRefundSignal(telegram);
   const blockers = checks.filter((item) => !item.ok && item.severity === "blocker");
   const warnings = checks.filter((item) => !item.ok && item.severity !== "blocker");
   return {
@@ -1413,6 +1597,7 @@ async function buildRealTestOrderRefreshOpsReport(telegramId) {
     selected_order: summarizePaymentOrderForOps(selectedOrder, now),
     fresh_pending_order: summarizePaymentOrderForOps(freshPendingWithWallet, now),
     latest_orders: orders.slice(0, 10).map((order) => summarizePaymentOrderForOps(order, now)),
+    controlled_real_test_refund: refundSignal,
     assigned_wallet: assignedWallet ? {
       id: assignedWallet.id,
       wallet: redactWalletForOps(assignedWallet.address),
@@ -1439,9 +1624,323 @@ async function buildRealTestOrderRefreshOpsReport(telegramId) {
   };
 }
 
+function opsTimestampMs(value) {
+  const ms = value ? Date.parse(value) : NaN;
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+function compactDepositRefundWithdrawForOps(withdraw) {
+  if (!withdraw) return null;
+  const note = String(withdraw.admin_note || "");
+  return {
+    id: withdraw.id,
+    status: withdraw.status || null,
+    amount: withdraw.amount === null || withdraw.amount === undefined ? null : Number(withdraw.amount),
+    wallet: redactWalletForOps(withdraw.wallet_address),
+    created_at: withdraw.created_at || null,
+    processed_at: withdraw.processed_at || null,
+    auto_payout_submitted: /Auto payout submitted/i.test(note),
+    remote_confirmed: /remote_confirmed=true/i.test(note),
+    retry_pending: /retry pending/i.test(note)
+  };
+}
+
+function isApprovedDepositRefundWithdraw(withdraw) {
+  const status = String(withdraw?.status || "").toLowerCase();
+  return ["approved", "paid", "auto_paid", "completed"].includes(status);
+}
+
+function isFailedDepositRefundWithdraw(withdraw) {
+  const status = String(withdraw?.status || "").toLowerCase();
+  return ["rejected", "failed", "cancelled", "canceled"].includes(status);
+}
+
+async function buildControlledRealTestRefundSignal(telegramId) {
+  const telegram = String(telegramId || "").trim();
+  const signal = {
+    telegram_id: telegram,
+    available: false,
+    approved: false,
+    remote_confirmed: false,
+    latest_status: null,
+    latest: null,
+    approved_withdraw: null,
+    failed_after_approved: false,
+    checked_at: new Date().toISOString()
+  };
+
+  if (!isSafeTelegramId(telegram)) {
+    return { ...signal, error: "invalid_telegram_id" };
+  }
+
+  const { data, error } = await supabase
+    .from("withdraws")
+    .select("id,telegram_id,amount,wallet_type,wallet_address,status,admin_note,created_at,processed_at")
+    .eq("telegram_id", telegram)
+    .eq("wallet_type", "TON_DEPOSIT_REFUND")
+    .order("created_at", { ascending: false })
+    .limit(10);
+
+  if (error) {
+    if (["42P01", "42703", "PGRST116"].includes(error.code)) {
+      return { ...signal, error: error.code || "withdraw_signal_unavailable" };
+    }
+    throw error;
+  }
+
+  const rows = Array.isArray(data) ? data : [];
+  const latest = rows[0] || null;
+  const approved = rows.find(isApprovedDepositRefundWithdraw) || null;
+  const latestFailed = rows.find(isFailedDepositRefundWithdraw) || null;
+  const approvedMs = Math.max(opsTimestampMs(approved?.processed_at), opsTimestampMs(approved?.created_at));
+  const failedMs = Math.max(opsTimestampMs(latestFailed?.processed_at), opsTimestampMs(latestFailed?.created_at));
+
+  return {
+    ...signal,
+    available: true,
+    approved: Boolean(approved),
+    remote_confirmed: Boolean(approved && /remote_confirmed=true/i.test(String(approved.admin_note || ""))),
+    latest_status: latest?.status || null,
+    latest: compactDepositRefundWithdrawForOps(latest),
+    approved_withdraw: compactDepositRefundWithdrawForOps(approved),
+    failed_after_approved: Boolean(latestFailed && (!approved || failedMs > approvedMs)),
+    recent_count: rows.length
+  };
+}
+
+function getControlledRealTestSignals(orderRefresh, dbAudit) {
+  const counts = dbAudit?.counts || {};
+  const confirmedOrders24h = Number(counts.confirmed_orders_24h?.count || 0);
+  const paymentTransactions24h = Number(counts.payment_transactions_24h?.count || 0);
+  const completedRefunds24h = Number(counts.deposit_refund_withdraws_completed_24h?.count || 0);
+  const failedRefunds24h = Number(counts.deposit_refund_withdraws_failed_24h?.count || 0);
+  const staleProcessingRefunds15m = Number(counts.deposit_refund_withdraws_processing_stale_15m?.count || 0);
+  const orders = [
+    orderRefresh?.selected_order,
+    orderRefresh?.fresh_pending_order,
+    ...(Array.isArray(orderRefresh?.latest_orders) ? orderRefresh.latest_orders : [])
+  ].filter(Boolean);
+  const selectedConfirmedOrder = orders.find((order) =>
+    String(order.status || "").toLowerCase() === "confirmed" &&
+    (order.tx_hash_present === true || Number(order.paid_amount || 0) > 0)
+  ) || null;
+  const refundSignal = orderRefresh?.controlled_real_test_refund || {};
+  const depositConfirmed = Boolean(selectedConfirmedOrder) || (confirmedOrders24h > 0 && paymentTransactions24h > 0);
+  const selectedRefundApproved = refundSignal.approved === true && refundSignal.failed_after_approved !== true;
+  const refundPassed = selectedRefundApproved || (completedRefunds24h > 0 && failedRefunds24h === 0 && staleProcessingRefunds15m === 0);
+  const failedRefundsRecoveredForSelectedUser = failedRefunds24h > 0 && selectedRefundApproved && staleProcessingRefunds15m === 0;
+  const failedRefundsZeroOrRecovered = failedRefunds24h === 0 || failedRefundsRecoveredForSelectedUser;
+  const realTestPassed = depositConfirmed && refundPassed && staleProcessingRefunds15m === 0;
+
+  return {
+    telegram_id: orderRefresh?.telegram_id || null,
+    deposit_confirmed: depositConfirmed,
+    selected_confirmed_order_id: selectedConfirmedOrder?.id || null,
+    refund_approved: selectedRefundApproved,
+    refund_remote_confirmed: refundSignal.remote_confirmed === true,
+    refund_latest_status: refundSignal.latest_status || null,
+    failed_refunds_recovered_for_selected_user: failedRefundsRecoveredForSelectedUser,
+    failed_refunds_zero_or_recovered: failedRefundsZeroOrRecovered,
+    refund_passed: refundPassed,
+    real_test_passed: realTestPassed,
+    observed: {
+      confirmed_orders_24h: confirmedOrders24h,
+      payment_transactions_24h: paymentTransactions24h,
+      completed_refunds_24h: completedRefunds24h,
+      failed_refunds_24h: failedRefunds24h,
+      stale_processing_refunds_15m: staleProcessingRefunds15m
+    }
+  };
+}
+
+function onlyRecoveredFailedRefundBlockers(blockers, signals) {
+  const items = Array.isArray(blockers) ? blockers : [];
+  if (!signals?.failed_refunds_recovered_for_selected_user) return false;
+  return items.length > 0 && items.every((item) => item?.name === "failed_refunds_zero_24h");
+}
+
+function isRetryPendingDepositRefundWithdraw(withdraw) {
+  const note = String(withdraw?.admin_note || "");
+  const status = String(withdraw?.status || "").toLowerCase();
+  return Boolean(
+    status === "pending" && /retry pending|429|rate limit|too many requests/i.test(note)
+  );
+}
+
+function isProcessingDepositRefundWithdraw(withdraw) {
+  return String(withdraw?.status || "").toLowerCase() === "processing";
+}
+
+function depositRefundRemoteConfirmed(withdraw) {
+  const note = String(withdraw?.admin_note || "");
+  return Boolean(
+    /remote_confirmed=true/i.test(note) ||
+    /chain_reconciled/i.test(note) ||
+    /tx_hash=/i.test(note) ||
+    ["approved", "paid", "auto_paid", "completed"].includes(String(withdraw?.status || "").toLowerCase())
+  );
+}
+
+function getCanaryCutoffFromControlledTest(orderRefresh) {
+  const refund = orderRefresh?.controlled_real_test_refund?.approved_withdraw;
+  const orderCandidates = [
+    orderRefresh?.selected_order,
+    ...(Array.isArray(orderRefresh?.latest_orders) ? orderRefresh.latest_orders : [])
+  ];
+  const confirmedOrder = orderCandidates.find((order) =>
+    String(order?.status || "").toLowerCase() === "confirmed" &&
+    (order?.tx_hash_present === true || Number(order?.paid_amount || 0) > 0)
+  );
+  const cutoffMs = Math.max(
+    opsTimestampMs(refund?.processed_at),
+    opsTimestampMs(refund?.created_at),
+    opsTimestampMs(confirmedOrder?.paid_at),
+    opsTimestampMs(confirmedOrder?.created_at)
+  );
+  const fallbackMs = Date.now() - CANARY_SIGNAL_LOOKBACK_HOURS * 60 * 60 * 1000;
+  return {
+    cutoff_ms: cutoffMs || fallbackMs,
+    cutoff_source: cutoffMs ? "controlled_real_test" : `fallback_last_${CANARY_SIGNAL_LOOKBACK_HOURS}h`,
+    controlled_refund_id: refund?.id || null,
+    controlled_order_id: confirmedOrder?.id || null
+  };
+}
+
+function compactCanaryPaymentOrderForOps(order) {
+  if (!order) return null;
+  return {
+    id: order.id,
+    telegram_id: String(order.telegram_id || ""),
+    status: order.status || null,
+    amount: order.amount === null || order.amount === undefined ? null : Number(order.amount),
+    paid_amount: order.paid_amount === null || order.paid_amount === undefined ? null : Number(order.paid_amount),
+    wallet: redactWalletForOps(order.wallet_address || order.admin_wallet),
+    tx_hash_present: Boolean(order.tx_hash || order.transaction_hash || order.payment_tx_hash),
+    created_at: order.created_at || null,
+    paid_at: order.paid_at || null,
+    updated_at: order.updated_at || null
+  };
+}
+
+async function buildCanaryProgressionSignal(controlTelegramId, orderRefresh) {
+  const controlTelegram = String(controlTelegramId || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID).trim();
+  const cutoff = getCanaryCutoffFromControlledTest(orderRefresh);
+  const cutoffIso = new Date(cutoff.cutoff_ms).toISOString();
+  const nowMs = Date.now();
+  const staleBeforeMs = nowMs - CANARY_REFUND_STALE_MINUTES * 60 * 1000;
+  const signal = {
+    checked_at: new Date().toISOString(),
+    control_telegram_id: controlTelegram,
+    cutoff_at: cutoffIso,
+    cutoff_source: cutoff.cutoff_source,
+    controlled_refund_id: cutoff.controlled_refund_id,
+    controlled_order_id: cutoff.controlled_order_id,
+    required_fresh_success_users_for_canary_1_clean: CANARY_1_REQUIRED_FRESH_SUCCESS_USERS,
+    target_min_users_for_next_stage: CANARY_10_20_TARGET_MIN_USERS,
+    target_max_users_for_next_stage: CANARY_10_20_TARGET_MAX_USERS,
+    required_clean_users_for_canary_100: CANARY_100_REQUIRED_CLEAN_USERS,
+    required_clean_users_for_canary_1000: CANARY_1000_REQUIRED_CLEAN_USERS,
+    required_clean_users_for_canary_10000: CANARY_10000_REQUIRED_CLEAN_USERS,
+    required_clean_users_for_canary_100000: CANARY_100000_REQUIRED_CLEAN_USERS,
+    required_clean_users_for_marketing_spike_700k_5d: MARKETING_SPIKE_700K_REQUIRED_CLEAN_USERS,
+    stale_refund_minutes: CANARY_REFUND_STALE_MINUTES,
+    fresh_success_users: 0,
+    fresh_remote_confirmed_refund_users: 0,
+    fresh_confirmed_deposit_users: 0,
+    matched_success_users: 0,
+    retry_pending_refunds: 0,
+    stale_processing_refunds: 0,
+    failed_refunds: 0,
+    pending_refunds: 0,
+    processing_refunds: 0,
+    canary_1_clean: false,
+    canary_10_20_allowed: false,
+    samples: {
+      successful_refunds: [],
+      retry_pending_refunds: [],
+      stale_processing_refunds: [],
+      failed_refunds: [],
+      confirmed_orders: []
+    },
+    errors: []
+  };
+
+  const [refundResult, orderResult] = await Promise.all([
+    supabase
+      .from("withdraws")
+      .select("*")
+      .eq("wallet_type", "TON_DEPOSIT_REFUND")
+      .gte("created_at", cutoffIso)
+      .order("created_at", { ascending: false })
+      .limit(250),
+    supabase
+      .from("payment_orders")
+      .select("*")
+      .eq("status", "confirmed")
+      .gte("created_at", cutoffIso)
+      .order("created_at", { ascending: false })
+      .limit(250)
+  ]);
+
+  if (refundResult.error && !["42P01", "42703", "PGRST116"].includes(refundResult.error.code)) {
+    throw refundResult.error;
+  }
+  if (orderResult.error && !["42P01", "42703", "PGRST116"].includes(orderResult.error.code)) {
+    throw orderResult.error;
+  }
+  if (refundResult.error) signal.errors.push({ source: "withdraws", code: refundResult.error.code, message: refundResult.error.message });
+  if (orderResult.error) signal.errors.push({ source: "payment_orders", code: orderResult.error.code, message: orderResult.error.message });
+
+  const refundRows = (Array.isArray(refundResult.data) ? refundResult.data : [])
+    .filter((row) => String(row.telegram_id || "") !== controlTelegram);
+  const orderRows = (Array.isArray(orderResult.data) ? orderResult.data : [])
+    .filter((row) => String(row.telegram_id || "") !== controlTelegram);
+  const successfulRefunds = refundRows.filter(isApprovedDepositRefundWithdraw);
+  const remoteConfirmedRefunds = successfulRefunds.filter(depositRefundRemoteConfirmed);
+  const retryPendingRefunds = refundRows.filter(isRetryPendingDepositRefundWithdraw);
+  const failedRefunds = refundRows.filter(isFailedDepositRefundWithdraw);
+  const processingRefunds = refundRows.filter(isProcessingDepositRefundWithdraw);
+  const staleProcessingRefunds = processingRefunds.filter((row) => {
+    const startedMs = Math.max(opsTimestampMs(row.processed_at), opsTimestampMs(row.created_at));
+    return startedMs > 0 && startedMs < staleBeforeMs;
+  });
+  const pendingRefunds = refundRows.filter((row) => String(row.status || "").toLowerCase() === "pending");
+  const successfulRefundUsers = new Set(successfulRefunds.map((row) => String(row.telegram_id || "")).filter(Boolean));
+  const remoteConfirmedRefundUsers = new Set(remoteConfirmedRefunds.map((row) => String(row.telegram_id || "")).filter(Boolean));
+  const confirmedOrderUsers = new Set(orderRows.map((row) => String(row.telegram_id || "")).filter(Boolean));
+  const matchedSuccessUsers = Array.from(successfulRefundUsers).filter((id) => confirmedOrderUsers.has(id));
+
+  signal.fresh_success_users = successfulRefundUsers.size;
+  signal.fresh_remote_confirmed_refund_users = remoteConfirmedRefundUsers.size;
+  signal.fresh_confirmed_deposit_users = confirmedOrderUsers.size;
+  signal.matched_success_users = matchedSuccessUsers.length;
+  signal.retry_pending_refunds = retryPendingRefunds.length;
+  signal.stale_processing_refunds = staleProcessingRefunds.length;
+  signal.failed_refunds = failedRefunds.length;
+  signal.pending_refunds = pendingRefunds.length;
+  signal.processing_refunds = processingRefunds.length;
+  signal.canary_1_clean = (
+    matchedSuccessUsers.length >= CANARY_1_REQUIRED_FRESH_SUCCESS_USERS &&
+    failedRefunds.length === 0 &&
+    staleProcessingRefunds.length === 0 &&
+    retryPendingRefunds.length === 0
+  );
+  signal.canary_10_20_allowed = signal.canary_1_clean;
+  signal.samples = {
+    successful_refunds: successfulRefunds.slice(0, 5).map(compactDepositRefundWithdrawForOps),
+    retry_pending_refunds: retryPendingRefunds.slice(0, 5).map(compactDepositRefundWithdrawForOps),
+    stale_processing_refunds: staleProcessingRefunds.slice(0, 5).map(compactDepositRefundWithdrawForOps),
+    failed_refunds: failedRefunds.slice(0, 5).map(compactDepositRefundWithdrawForOps),
+    confirmed_orders: orderRows.slice(0, 5).map(compactCanaryPaymentOrderForOps)
+  };
+  return signal;
+}
+
 async function buildRealTestWalletPoolProbe(telegramId, selectedOrder) {
   const selectedAddress = normalizeAddress(selectedOrder?.wallet_address || selectedOrder?.admin_wallet);
   const probe = {
+    required_wallet_pool_tag: requiresMnemonicPaymentWalletPool() ? PAYMENT_REQUIRED_WALLET_POOL_TAG : null,
+    mnemonic_pool_required: requiresMnemonicPaymentWalletPool(),
     selected_wallet_in_pool: null,
     available_wallet_sample_count: 0,
     available_wallet_sample: [],
@@ -1483,6 +1982,7 @@ async function buildRealTestWalletPoolProbe(telegramId, selectedOrder) {
         present: true,
         id: data.id,
         wallet: redactWalletForOps(data.address),
+        required_pool: isPaymentWalletEligible(data),
         assigned_to_current_user: String(data.assigned_to_telegram_id || "") === String(telegramId),
         assigned_to_any_user: Boolean(data.assigned_to_telegram_id),
         assigned_until: data.assigned_until || null,
@@ -1495,18 +1995,21 @@ async function buildRealTestWalletPoolProbe(telegramId, selectedOrder) {
     } else {
       probe.selected_wallet_in_pool = {
         present: false,
+        required_pool: false,
         wallet: redactWalletForOps(selectedAddress)
       };
     }
   }
 
-  const { data: strictAvailableSample, error: availableError } = await supabase
+  let strictAvailableSampleQuery = supabase
     .from("payment_wallets")
     .select("id,address,wallet_pool_tag,last_assigned_at,is_active,network,token")
     .eq("network", PAYMENT_NETWORK)
     .eq("token", PAYMENT_TOKEN)
     .eq("is_active", true)
-    .is("assigned_to_telegram_id", null)
+    .is("assigned_to_telegram_id", null);
+  strictAvailableSampleQuery = applyPaymentWalletPoolTagFilter(strictAvailableSampleQuery);
+  const { data: strictAvailableSample, error: availableError } = await strictAvailableSampleQuery
     .order("last_assigned_at", { ascending: true, nullsFirst: true })
     .limit(5);
 
@@ -1515,12 +2018,14 @@ async function buildRealTestWalletPoolProbe(telegramId, selectedOrder) {
   }
 
   let availableSample = strictAvailableSample || [];
-  if (!availableSample.length && (!availableError || ["42703"].includes(availableError.code))) {
-    const { data: relaxedAvailableSample, error: relaxedAvailableError } = await supabase
+  if (!availableSample.length && !requiresMnemonicPaymentWalletPool() && (!availableError || ["42703"].includes(availableError.code))) {
+    let relaxedAvailableSampleQuery = supabase
       .from("payment_wallets")
       .select("id,address,wallet_pool_tag,last_assigned_at,is_active,network,token")
       .eq("is_active", true)
-      .is("assigned_to_telegram_id", null)
+      .is("assigned_to_telegram_id", null);
+    relaxedAvailableSampleQuery = applyPaymentWalletPoolTagFilter(relaxedAvailableSampleQuery);
+    const { data: relaxedAvailableSample, error: relaxedAvailableError } = await relaxedAvailableSampleQuery
       .order("last_assigned_at", { ascending: true, nullsFirst: true })
       .limit(5);
 
@@ -1536,6 +2041,7 @@ async function buildRealTestWalletPoolProbe(telegramId, selectedOrder) {
     probe.available_wallet_sample = (availableSample || []).map((wallet) => ({
       id: wallet.id,
       wallet: redactWalletForOps(wallet.address),
+      required_pool: isPaymentWalletEligible(wallet, { requireUnassigned: true }),
       wallet_pool_tag: wallet.wallet_pool_tag || null,
       last_assigned_at: wallet.last_assigned_at || null,
       is_active: wallet.is_active !== false,
@@ -1937,6 +2443,24 @@ async function findLatestConfirmedPaymentOrder(telegramId) {
   return data || null;
 }
 
+async function hasConfirmedActivationDeposit(telegramId, user = null) {
+  if (user?.withdraw_payment_verified_at) return true;
+  const confirmedOrder = await findLatestConfirmedPaymentOrder(telegramId);
+  if (confirmedOrder?.id) return true;
+
+  const { data: tx, error } = await supabase
+    .from("payment_transactions")
+    .select("id")
+    .eq("telegram_id", String(telegramId))
+    .eq("network", PAYMENT_NETWORK)
+    .eq("token", PAYMENT_TOKEN)
+    .limit(1)
+    .maybeSingle();
+
+  if (error && !["42P01", "42703", "PGRST116"].includes(error.code)) throw error;
+  return Boolean(tx?.id);
+}
+
 async function findPersistentUserPaymentOrder(telegramId) {
   const confirmedOrder = await findLatestConfirmedPaymentOrder(telegramId);
   if (confirmedOrder?.wallet_address) return normalizePaymentOrder(confirmedOrder);
@@ -1953,21 +2477,35 @@ async function findPersistentUserPaymentOrder(telegramId) {
     .maybeSingle();
 
   if (latestOrderError && latestOrderError.code !== "PGRST116") throw latestOrderError;
-  if (latestOrder?.wallet_address) return normalizePaymentOrder(latestOrder);
+  if (latestOrder?.wallet_address) {
+    let latestWalletQuery = supabase
+      .from("payment_wallets")
+      .select("id,address,network,token,is_active,wallet_pool_tag,assigned_to_telegram_id")
+      .eq("address", normalizeAddress(latestOrder.wallet_address))
+      .eq("is_active", true);
+    latestWalletQuery = applyPaymentWalletPoolTagFilter(latestWalletQuery);
+    const { data: latestWallet, error: latestWalletError } = await latestWalletQuery
+      .limit(1)
+      .maybeSingle();
+    if (latestWalletError && !["42P01", "42703", "PGRST116"].includes(latestWalletError.code)) throw latestWalletError;
+    if (isPaymentWalletEligible(latestWallet)) return normalizePaymentOrder(latestOrder);
+  }
 
-  const { data: wallet, error: walletError } = await supabase
+  let walletQuery = supabase
     .from("payment_wallets")
-    .select("address,last_assigned_at,assigned_until")
+    .select("address,last_assigned_at,assigned_until,wallet_pool_tag,network,token,is_active")
     .eq("network", PAYMENT_NETWORK)
     .eq("token", PAYMENT_TOKEN)
     .eq("is_active", true)
-    .eq("assigned_to_telegram_id", String(telegramId))
+    .eq("assigned_to_telegram_id", String(telegramId));
+  walletQuery = applyPaymentWalletPoolTagFilter(walletQuery);
+  const { data: wallet, error: walletError } = await walletQuery
     .order("last_assigned_at", { ascending: false, nullsFirst: false })
     .limit(1)
     .maybeSingle();
 
   if (walletError && !["42P01", "42703", "PGRST116"].includes(walletError.code)) throw walletError;
-  if (!wallet?.address || !isLikelyTonAddress(wallet.address)) return null;
+  if (!isPaymentWalletEligible(wallet)) return null;
 
   const expiresAt = wallet.assigned_until || addMinutes(new Date(), PAYMENT_ORDER_TTL_MINUTES).toISOString();
   const repairedOrder = await createOrUpdatePaymentOrderWithWallet(telegramId, wallet.address, expiresAt).catch((err) => {
@@ -2032,7 +2570,7 @@ async function createOrUpdatePaymentOrderWithWallet(telegramId, walletAddress, e
       admin_wallet: address,
       amount: PAYMENT_AMOUNT_TON,
       required_amount: PAYMENT_AMOUNT_TON,
-      assigned_at: now.toISOString(),
+      assigned_at: order.assigned_at || now.toISOString(),
       expires_at: expiresAt,
       last_checked_at: null,
       updated_at: now.toISOString()
@@ -2079,8 +2617,9 @@ async function markWithdrawAutoPayoutError(withdrawId, message, options = {}) {
     .maybeSingle();
 
   const notePrefix = current?.admin_note ? `${String(current.admin_note).trim()}\n` : "";
+  const label = options.label || "Auto payout failed";
   const updateBody = {
-    admin_note: `${notePrefix}Auto payout failed: ${message}`.trim()
+    admin_note: `${notePrefix}${label}: ${message}`.trim()
   };
 
   if (options.status) {
@@ -2100,28 +2639,146 @@ async function markWithdrawAutoPayoutError(withdrawId, message, options = {}) {
   return data || null;
 }
 
+async function findTonPayoutTransferOnChain({ sourceWalletAddress, destinationWalletAddress, minTimestampMs, expectedAmountTon = ACTIVATION_PAYOUT_TON }) {
+  const source = normalizeAddress(sourceWalletAddress);
+  const destination = normalizeAddress(destinationWalletAddress);
+  if (!source || !destination || !isLikelyTonAddress(source) || !isLikelyTonAddress(destination)) return null;
+
+  const earliest = Number.isFinite(Number(minTimestampMs))
+    ? Math.max(0, Number(minTimestampMs) - 60 * 1000)
+    : Date.now() - 24 * 60 * 60 * 1000;
+  const expectedUnits = decimalToUnits(expectedAmountTon);
+  const exactToleranceUnits = decimalToUnits("0.10");
+  const materialMinimumUnits = decimalToUnits("1");
+  const transfers = await fetchToncenterOutgoingTransfers(source, earliest);
+  const candidates = (transfers || [])
+    .filter((transfer) => {
+      if (!sameTonAddress(transfer.from || source, source)) return false;
+      if (!sameTonAddress(transfer.to, destination)) return false;
+      const amountUnits = BigInt(String(transfer.value || "0"));
+      return amountUnits >= materialMinimumUnits;
+    })
+    .sort((left, right) => Number(right.timestamp_ms || 0) - Number(left.timestamp_ms || 0));
+
+  if (!candidates.length) return null;
+
+  const exact = candidates.find((transfer) => {
+    const amountUnits = BigInt(String(transfer.value || "0"));
+    const diff = amountUnits > expectedUnits ? amountUnits - expectedUnits : expectedUnits - amountUnits;
+    return diff <= exactToleranceUnits;
+  });
+  const selected = exact || candidates[0];
+  const observedUnits = BigInt(String(selected.value || "0"));
+  const diff = observedUnits > expectedUnits ? observedUnits - expectedUnits : expectedUnits - observedUnits;
+
+  return {
+    ...selected,
+    observed_amount_ton: tonUnitsToNumber(selected.value),
+    expected_amount_ton: Number(expectedAmountTon),
+    exact_amount_match: diff <= exactToleranceUnits
+  };
+}
+
+async function reconcileDepositRefundWithdrawFromChain(withdraw, options = {}) {
+  if (!withdraw?.id || String(withdraw.wallet_type || "") !== "TON_DEPOSIT_REFUND") return null;
+  const confirmedOrder = options.sourceOrder || await findLatestConfirmedPaymentOrder(withdraw.telegram_id);
+  if (!confirmedOrder?.wallet_address || !withdraw.wallet_address) return null;
+
+  const timestampCandidates = [
+    new Date(withdraw.created_at || 0).getTime(),
+    new Date(withdraw.processed_at || 0).getTime(),
+    new Date(confirmedOrder.paid_at || confirmedOrder.updated_at || confirmedOrder.created_at || 0).getTime()
+  ].filter((value) => Number.isFinite(value) && value > 0);
+  const minTimestampMs = timestampCandidates.length
+    ? Math.min(...timestampCandidates)
+    : Date.now() - 24 * 60 * 60 * 1000;
+
+  const transfer = await findTonPayoutTransferOnChain({
+    sourceWalletAddress: confirmedOrder.wallet_address,
+    destinationWalletAddress: withdraw.wallet_address,
+    minTimestampMs,
+    expectedAmountTon: ACTIVATION_PAYOUT_TON
+  });
+  if (!transfer) return null;
+
+  const processedAt = new Date(transfer.timestamp_ms || Date.now()).toISOString();
+  const adminNoteParts = [
+    "Auto payout chain reconciled",
+    `source=${normalizeAddress(confirmedOrder.wallet_address)}`,
+    `destination=${normalizeAddress(withdraw.wallet_address)}`,
+    `observed_amount=${transfer.observed_amount_ton} TON`,
+    `expected_amount=${ACTIVATION_PAYOUT_TON} TON`,
+    `exact_amount_match=${transfer.exact_amount_match}`,
+    `tx_hash=${transfer.transaction_hash || transfer.hash || "unknown"}`
+  ];
+
+  const { data: current } = await supabase
+    .from("withdraws")
+    .select("admin_note")
+    .eq("id", withdraw.id)
+    .maybeSingle();
+
+  const existingNote = current?.admin_note ? `${String(current.admin_note).trim()}\n` : "";
+  const { data: updatedWithdraw, error } = await supabase
+    .from("withdraws")
+    .update({
+      status: "approved",
+      processed_at: processedAt,
+      admin_note: `${existingNote}${adminNoteParts.join(" | ")}`.trim()
+    })
+    .eq("id", withdraw.id)
+    .in("status", ["pending", "processing", "rejected", "failed", "submitted", "submitted_unconfirmed"])
+    .select()
+    .maybeSingle();
+
+  if (error) throw error;
+
+  return {
+    transfer,
+    source_order: normalizePaymentOrder(confirmedOrder),
+    withdraw: updatedWithdraw || withdraw,
+    status: "chain_reconciled"
+  };
+}
+
 async function sendTonPayoutFromPoolWallet({ sourceWalletAddress, destinationWalletAddress, amountTon, comment }) {
   if (!TON_SIGNER_ENABLED) {
     throw new Error("TON signer yoqilmagan");
   }
+  const payoutNano = decimalToUnits(amountTon);
   if (TON_REMOTE_SIGNER_ENABLED) {
-    const payout = await fetchRemoteSignerJson("/payout", {
-      method: "POST",
-      body: {
-        source_wallet_address: sourceWalletAddress,
-        destination_wallet_address: destinationWalletAddress,
-        amount_ton: amountTon,
-        comment: comment || TON_PAYOUT_BODY
+    let payout;
+    try {
+      payout = await fetchRemoteSignerJson("/payout", {
+        method: "POST",
+        body: {
+          source_wallet_address: sourceWalletAddress,
+          destination_wallet_address: destinationWalletAddress,
+          amount_ton: amountTon,
+          amount_nano: payoutNano.toString(),
+          comment: comment || TON_PAYOUT_BODY
+        }
+      });
+    } catch (err) {
+      if (isPotentialTonPayoutSubmissionError(err)) {
+        err.payoutSubmitted = true;
+        err.source_wallet_address = sourceWalletAddress;
+        err.destination_wallet_address = destinationWalletAddress;
+        err.amount_ton = Number(amountTon);
       }
-    });
+      throw err;
+    }
     return {
       source_wallet_address: normalizeAddress(payout.source_wallet_address || sourceWalletAddress),
       destination_wallet_address: normalizeAddress(payout.destination_wallet_address || destinationWalletAddress),
       amount_ton: Number(payout.amount_ton ?? amountTon),
+      amount_nano: normalizeAddress(payout.amount_nano || payoutNano.toString()),
       seqno: payout.seqno ?? null,
       confirmed_seqno: payout.confirmed_seqno ?? null,
       remote_signer: true,
-      tx_hash: payout.tx_hash || null
+      tx_hash: payout.tx_hash || null,
+      submitted: payout.submitted !== false,
+      confirmed: payout.confirmed === true
     };
   }
   if (!TON_SIGNER_KEYS_DIR) {
@@ -2151,7 +2808,6 @@ async function sendTonPayoutFromPoolWallet({ sourceWalletAddress, destinationWal
   const client = await getTonSignerClient();
   const contract = client.open(wallet);
   const balance = await contract.getBalance();
-  const payoutNano = decimalToUnits(amountTon);
   const reserveNano = decimalToUnits(TON_PAYOUT_GAS_RESERVE);
 
   if (balance < payoutNano + reserveNano) {
@@ -2167,7 +2823,7 @@ async function sendTonPayoutFromPoolWallet({ sourceWalletAddress, destinationWal
     sendMode: SendMode.PAY_GAS_SEPARATELY,
     messages: [internal({
       to: normalizedDestination,
-      value: amountTon,
+      value: payoutNano,
       bounce: false,
       body: comment || TON_PAYOUT_BODY
     })]
@@ -2190,13 +2846,59 @@ async function sendTonPayoutFromPoolWallet({ sourceWalletAddress, destinationWal
   };
 }
 
+async function sendTonPayoutFromPoolWalletWithRetry(args, options = {}) {
+  const attempts = Math.max(1, Math.min(6, Number(options.attempts || process.env.TON_PAYOUT_RETRY_ATTEMPTS || 4) || 4));
+  const retryDelays = [1500, 3500, 7000, 12000, 20000];
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await sendTonPayoutFromPoolWallet(args);
+    } catch (error) {
+      lastError = error;
+
+      if (isPotentialTonPayoutSubmissionError(error)) {
+        throw error;
+      }
+
+      if (!isRetryableTonPayoutError(error) || attempt >= attempts) {
+        if (isRetryableTonPayoutError(error)) {
+          error.retryablePayoutFailure = true;
+          error.retryAttempts = attempt;
+        }
+        throw error;
+      }
+
+      await sleep(retryDelays[Math.min(attempt - 1, retryDelays.length - 1)]);
+    }
+  }
+
+  throw lastError || new Error("TON payout retry failed");
+}
+
 async function tryAutoProcessDepositRefundWithdraw(withdraw) {
   const confirmedOrder = await findLatestConfirmedPaymentOrder(withdraw.telegram_id);
   if (!confirmedOrder?.wallet_address) {
     throw new Error("User uchun tasdiqlangan TON aktivatsiya hamyoni topilmadi");
   }
 
-  const payout = await sendTonPayoutFromPoolWallet({
+  const alreadyPaid = await reconcileDepositRefundWithdrawFromChain(withdraw, { sourceOrder: confirmedOrder });
+  if (alreadyPaid) {
+    return {
+      payout: {
+        source_wallet_address: confirmedOrder.wallet_address,
+        destination_wallet_address: withdraw.wallet_address,
+        amount_ton: alreadyPaid.transfer.observed_amount_ton,
+        tx_hash: alreadyPaid.transfer.transaction_hash || alreadyPaid.transfer.hash || null,
+        chain_reconciled: true,
+        exact_amount_match: alreadyPaid.transfer.exact_amount_match
+      },
+      source_order: alreadyPaid.source_order,
+      withdraw: alreadyPaid.withdraw
+    };
+  }
+
+  const payout = await sendTonPayoutFromPoolWalletWithRetry({
     sourceWalletAddress: confirmedOrder.wallet_address,
     destinationWalletAddress: withdraw.wallet_address,
     amountTon: ACTIVATION_PAYOUT_TON,
@@ -2209,14 +2911,16 @@ async function tryAutoProcessDepositRefundWithdraw(withdraw) {
     `source=${payout.source_wallet_address}`,
     `destination=${payout.destination_wallet_address}`,
     `amount=${ACTIVATION_PAYOUT_TON} TON`,
+    `amount_nano=${payout.amount_nano || decimalToUnits(ACTIVATION_PAYOUT_TON).toString()}`,
     `seqno=${payout.seqno}`,
-    `confirmed_seqno=${payout.confirmed_seqno}`
+    `confirmed_seqno=${payout.confirmed_seqno}`,
+    `remote_confirmed=${payout.confirmed === true}`
   ].join(" | ");
 
   const { data: updatedWithdraw, error } = await supabase
     .from("withdraws")
     .update({
-      status: "approved",
+      status: payout.confirmed === false ? "submitted_unconfirmed" : "approved",
       processed_at: processedAt,
       admin_note: adminNote
     })
@@ -2369,13 +3073,15 @@ async function claimPaymentWallet(orderId, telegramId, expiresAt) {
   const userId = String(telegramId);
 
   const findAssignedWallet = async () => {
-    const { data: strictData, error } = await supabase
+    let strictQuery = supabase
       .from("payment_wallets")
       .select("*")
       .eq("network", PAYMENT_NETWORK)
       .eq("token", PAYMENT_TOKEN)
       .eq("is_active", true)
-      .eq("assigned_to_telegram_id", userId)
+      .eq("assigned_to_telegram_id", userId);
+    strictQuery = applyPaymentWalletPoolTagFilter(strictQuery);
+    const { data: strictData, error } = await strictQuery
       .order("last_assigned_at", { ascending: false, nullsFirst: false })
       .limit(1)
       .maybeSingle();
@@ -2389,12 +3095,14 @@ async function claimPaymentWallet(orderId, telegramId, expiresAt) {
     }
 
     let data = strictData || null;
-    if (!data) {
-      const { data: relaxedData, error: relaxedError } = await supabase
+    if (!data && !requiresMnemonicPaymentWalletPool()) {
+      let relaxedQuery = supabase
         .from("payment_wallets")
         .select("*")
         .eq("is_active", true)
-        .eq("assigned_to_telegram_id", userId)
+        .eq("assigned_to_telegram_id", userId);
+      relaxedQuery = applyPaymentWalletPoolTagFilter(relaxedQuery);
+      const { data: relaxedData, error: relaxedError } = await relaxedQuery
         .order("last_assigned_at", { ascending: false, nullsFirst: false })
         .limit(1)
         .maybeSingle();
@@ -2408,16 +3116,18 @@ async function claimPaymentWallet(orderId, telegramId, expiresAt) {
       }
       data = relaxedData || null;
     }
-    return data?.address && isLikelyTonAddress(data.address) ? data : null;
+    return isPaymentWalletEligible(data) ? data : null;
   };
 
   const claimWalletCandidate = async (candidate) => {
-    if (!candidate?.id || !candidate?.address || !isLikelyTonAddress(candidate.address)) return null;
-    const { data: claimed, error: updateError } = await supabase
+    if (!candidate?.id || !isPaymentWalletEligible(candidate, { requireUnassigned: true })) return null;
+    let updateQuery = supabase
       .from("payment_wallets")
       .update(buildPaymentWalletAssignment(userId, orderId, expiresAt, now))
       .eq("id", candidate.id)
-      .is("assigned_to_telegram_id", null)
+      .is("assigned_to_telegram_id", null);
+    updateQuery = applyPaymentWalletPoolTagFilter(updateQuery);
+    const { data: claimed, error: updateError } = await updateQuery
       .select()
       .maybeSingle();
 
@@ -2434,7 +3144,7 @@ async function claimPaymentWallet(orderId, telegramId, expiresAt) {
       throw updateError;
     }
 
-    return claimed?.address && isLikelyTonAddress(claimed.address) ? claimed : null;
+    return isPaymentWalletEligible(claimed) ? claimed : null;
   };
 
   const claimAvailableWalletFast = async () => {
@@ -2447,9 +3157,13 @@ async function claimPaymentWallet(orderId, telegramId, expiresAt) {
     ];
 
     for (const [from, to] of windows) {
-      const { data: candidates, error: candidateError } = await supabase
+      let candidateQuery = supabase
         .from("payment_wallets")
-        .select("id,address,network,token,is_active,assigned_to_telegram_id")
+        .select("id,address,network,token,is_active,assigned_to_telegram_id,wallet_pool_tag")
+        .eq("is_active", true)
+        .is("assigned_to_telegram_id", null);
+      candidateQuery = applyPaymentWalletPoolTagFilter(candidateQuery);
+      const { data: candidates, error: candidateError } = await candidateQuery
         .order("id", { ascending: true })
         .range(from, to);
 
@@ -2462,11 +3176,7 @@ async function claimPaymentWallet(orderId, telegramId, expiresAt) {
       }
 
       const availableCandidates = (candidates || []).filter((candidate) =>
-        candidate?.is_active !== false &&
-        String(candidate?.network || PAYMENT_NETWORK) === PAYMENT_NETWORK &&
-        String(candidate?.token || PAYMENT_TOKEN) === PAYMENT_TOKEN &&
-        !candidate?.assigned_to_telegram_id &&
-        isLikelyTonAddress(candidate?.address)
+        isPaymentWalletEligible(candidate, { requireUnassigned: true })
       );
 
       for (const candidate of availableCandidates) {
@@ -2478,12 +3188,18 @@ async function claimPaymentWallet(orderId, telegramId, expiresAt) {
     return null;
   };
 
-  const assignedWalletFirst = await findAssignedWallet();
-  if (assignedWalletFirst?.address && isLikelyTonAddress(assignedWalletFirst.address)) {
-    const { error: assignedWalletUpdateError } = await supabase
+  let assignedWalletFirst = await findAssignedWallet();
+  if (!assignedWalletFirst) {
+    await releaseIneligiblePaymentWalletAssignments(userId, now);
+    assignedWalletFirst = await findAssignedWallet();
+  }
+  if (isPaymentWalletEligible(assignedWalletFirst)) {
+    let assignedWalletUpdateQuery = supabase
       .from("payment_wallets")
       .update(buildPaymentWalletAssignment(userId, orderId, expiresAt, now))
       .eq("id", assignedWalletFirst.id);
+    assignedWalletUpdateQuery = applyPaymentWalletPoolTagFilter(assignedWalletUpdateQuery);
+    const { error: assignedWalletUpdateError } = await assignedWalletUpdateQuery;
     if (assignedWalletUpdateError && !["42P01", "42703"].includes(assignedWalletUpdateError.code)) {
       throw assignedWalletUpdateError;
     }
@@ -2491,49 +3207,54 @@ async function claimPaymentWallet(orderId, telegramId, expiresAt) {
   }
 
   const preRpcFastWallet = await claimAvailableWalletFast();
-  if (preRpcFastWallet?.address && isLikelyTonAddress(preRpcFastWallet.address)) {
+  if (isPaymentWalletEligible(preRpcFastWallet)) {
     return preRpcFastWallet;
   }
 
-  const { data: rpcWallets, error: rpcError } = await supabase.rpc("claim_payment_wallet", {
-    p_order_id: orderId,
-    p_telegram_id: userId,
-    p_assigned_until: expiresAt,
-    p_network: PAYMENT_NETWORK,
-    p_token: PAYMENT_TOKEN
-  });
+  if (!requiresMnemonicPaymentWalletPool()) {
+    const { data: rpcWallets, error: rpcError } = await supabase.rpc("claim_payment_wallet", {
+      p_order_id: orderId,
+      p_telegram_id: userId,
+      p_assigned_until: expiresAt,
+      p_network: PAYMENT_NETWORK,
+      p_token: PAYMENT_TOKEN
+    });
 
-  if (!rpcError) {
-    const rpcWallet = Array.isArray(rpcWallets) ? rpcWallets[0] : rpcWallets;
-    if (rpcWallet?.address && isLikelyTonAddress(rpcWallet.address)) {
-      let rpcWalletQuery = supabase
-        .from("payment_wallets")
-        .update(buildPaymentWalletAssignment(userId, orderId, expiresAt, now))
-        .eq("network", PAYMENT_NETWORK)
-        .eq("token", PAYMENT_TOKEN);
-      rpcWalletQuery = rpcWallet.id
-        ? rpcWalletQuery.eq("id", rpcWallet.id)
-        : rpcWalletQuery.eq("address", normalizeAddress(rpcWallet.address));
-      const { error: rpcAssignError } = await rpcWalletQuery;
-      if (rpcAssignError && !["42P01", "42703"].includes(rpcAssignError.code)) {
-        if (isUniqueConstraintError(rpcAssignError)) {
-          const assignedWallet = await findAssignedWallet();
-          if (assignedWallet) return assignedWallet;
+    if (!rpcError) {
+      const rpcWallet = Array.isArray(rpcWallets) ? rpcWallets[0] : rpcWallets;
+      if (isPaymentWalletEligible(rpcWallet)) {
+        let rpcWalletQuery = supabase
+          .from("payment_wallets")
+          .update(buildPaymentWalletAssignment(userId, orderId, expiresAt, now))
+          .eq("network", PAYMENT_NETWORK)
+          .eq("token", PAYMENT_TOKEN);
+        rpcWalletQuery = rpcWallet.id
+          ? rpcWalletQuery.eq("id", rpcWallet.id)
+          : rpcWalletQuery.eq("address", normalizeAddress(rpcWallet.address));
+        rpcWalletQuery = applyPaymentWalletPoolTagFilter(rpcWalletQuery);
+        const { error: rpcAssignError } = await rpcWalletQuery;
+        if (rpcAssignError && !["42P01", "42703"].includes(rpcAssignError.code)) {
+          if (isUniqueConstraintError(rpcAssignError)) {
+            const assignedWallet = await findAssignedWallet();
+            if (assignedWallet) return assignedWallet;
+          }
+          throw rpcAssignError;
         }
-        throw rpcAssignError;
+        return { ...rpcWallet, assigned_order_id: orderId };
       }
-      return { ...rpcWallet, assigned_order_id: orderId };
+    } else if (!["42883", "PGRST202"].includes(rpcError.code)) {
+      console.warn("[payments] claim_payment_wallet rpc fallback:", rpcError.message || rpcError);
     }
-  } else if (!["42883", "PGRST202"].includes(rpcError.code)) {
-    console.warn("[payments] claim_payment_wallet rpc fallback:", rpcError.message || rpcError);
   }
 
   const stickyWallet = await findAssignedWallet();
-  if (stickyWallet?.address && isLikelyTonAddress(stickyWallet.address)) {
-    await supabase
+  if (isPaymentWalletEligible(stickyWallet)) {
+    let stickyWalletQuery = supabase
       .from("payment_wallets")
       .update(buildPaymentWalletAssignment(userId, orderId, expiresAt, now))
       .eq("id", stickyWallet.id);
+    stickyWalletQuery = applyPaymentWalletPoolTagFilter(stickyWalletQuery);
+    await stickyWalletQuery;
     return stickyWallet;
   }
 
@@ -2562,14 +3283,16 @@ async function claimPaymentWallet(orderId, telegramId, expiresAt) {
 
     if (!historicalAddress) continue;
 
-    const { data: restoredWallet, error: restoreError } = await supabase
+    let restoreQuery = supabase
       .from("payment_wallets")
       .update(buildPaymentWalletAssignment(userId, orderId, expiresAt, now))
       .eq("network", PAYMENT_NETWORK)
       .eq("token", PAYMENT_TOKEN)
       .eq("is_active", true)
       .eq("address", historicalAddress)
-      .or(`assigned_to_telegram_id.is.null,assigned_to_telegram_id.eq.${userId}`)
+      .or(`assigned_to_telegram_id.is.null,assigned_to_telegram_id.eq.${userId}`);
+    restoreQuery = applyPaymentWalletPoolTagFilter(restoreQuery);
+    const { data: restoredWallet, error: restoreError } = await restoreQuery
       .select()
       .maybeSingle();
 
@@ -2584,20 +3307,22 @@ async function claimPaymentWallet(orderId, telegramId, expiresAt) {
       }
       throw restoreError;
     }
-    if (restoredWallet?.address && isLikelyTonAddress(restoredWallet.address)) return restoredWallet;
+    if (isPaymentWalletEligible(restoredWallet)) return restoredWallet;
   }
 
   const fastClaimedWallet = await claimAvailableWalletFast();
-  if (fastClaimedWallet?.address && isLikelyTonAddress(fastClaimedWallet.address)) return fastClaimedWallet;
+  if (isPaymentWalletEligible(fastClaimedWallet)) return fastClaimedWallet;
 
-  const { data: wallet, error: findError } = await supabase
+  let findQuery = supabase
     .from("payment_wallets")
     .select("*")
     .eq("network", PAYMENT_NETWORK)
     .eq("token", PAYMENT_TOKEN)
     .eq("is_active", true)
     .is("assigned_to_telegram_id", null)
-    .or(`cooldown_until.is.null,cooldown_until.lte.${now}`)
+    .or(`cooldown_until.is.null,cooldown_until.lte.${now}`);
+  findQuery = applyPaymentWalletPoolTagFilter(findQuery);
+  const { data: wallet, error: findError } = await findQuery
     .order("last_assigned_at", { ascending: true, nullsFirst: true })
     .limit(1)
     .maybeSingle();
@@ -2609,14 +3334,16 @@ async function claimPaymentWallet(orderId, telegramId, expiresAt) {
     }
     throw findError;
   }
-  if (!wallet) return null;
+  if (!isPaymentWalletEligible(wallet, { requireUnassigned: true })) return null;
 
-  const { data: claimed, error: updateError } = await supabase
+  let finalClaimQuery = supabase
     .from("payment_wallets")
     .update(buildPaymentWalletAssignment(userId, orderId, expiresAt, now))
     .eq("id", wallet.id)
     .is("assigned_to_telegram_id", null)
-    .or(`cooldown_until.is.null,cooldown_until.lte.${now}`)
+    .or(`cooldown_until.is.null,cooldown_until.lte.${now}`);
+  finalClaimQuery = applyPaymentWalletPoolTagFilter(finalClaimQuery);
+  const { data: claimed, error: updateError } = await finalClaimQuery
     .select()
     .maybeSingle();
 
@@ -2627,23 +3354,26 @@ async function claimPaymentWallet(orderId, telegramId, expiresAt) {
     }
     throw updateError;
   }
-  return claimed || null;
+  return isPaymentWalletEligible(claimed) ? claimed : null;
 }
 
 async function ensurePaymentOrderWalletAssigned(order, telegramId, expiresAt, now) {
   const nowIso = now instanceof Date ? now.toISOString() : new Date().toISOString();
   const orderId = order?.id;
   const existingAddress = normalizeAddress(order?.wallet_address || order?.admin_wallet);
+  await releaseIneligiblePaymentWalletAssignments(telegramId, nowIso);
 
   if (existingAddress && isLikelyTonAddress(existingAddress)) {
-    const { data: strictAssigned, error: assignError } = await supabase
+    let strictAssignQuery = supabase
       .from("payment_wallets")
       .update(buildPaymentWalletAssignment(telegramId, orderId, expiresAt, nowIso))
       .eq("network", PAYMENT_NETWORK)
       .eq("token", PAYMENT_TOKEN)
       .eq("is_active", true)
       .eq("address", existingAddress)
-      .or(`assigned_to_telegram_id.is.null,assigned_to_telegram_id.eq.${String(telegramId)}`)
+      .or(`assigned_to_telegram_id.is.null,assigned_to_telegram_id.eq.${String(telegramId)}`);
+    strictAssignQuery = applyPaymentWalletPoolTagFilter(strictAssignQuery);
+    const { data: strictAssigned, error: assignError } = await strictAssignQuery
       .select()
       .maybeSingle();
 
@@ -2651,7 +3381,7 @@ async function ensurePaymentOrderWalletAssigned(order, telegramId, expiresAt, no
     if (assignError) {
       if (isUniqueConstraintError(assignError)) {
         const wallet = await claimPaymentWallet(orderId, telegramId, expiresAt);
-        if (wallet?.address && isLikelyTonAddress(wallet.address)) {
+        if (isPaymentWalletEligible(wallet)) {
           return updatePaymentOrderWalletAddress(orderId, wallet.address);
         }
         return normalizePaymentOrder(order);
@@ -2659,20 +3389,22 @@ async function ensurePaymentOrderWalletAssigned(order, telegramId, expiresAt, no
       if (!["42P01", "42703"].includes(assignError.code)) throw assignError;
     }
 
-    if (!assigned && (!assignError || ["42703", "PGRST116"].includes(assignError.code))) {
-      const { data: relaxedAssigned, error: relaxedAssignError } = await supabase
+    if (!assigned && !requiresMnemonicPaymentWalletPool() && (!assignError || ["42703", "PGRST116"].includes(assignError.code))) {
+      let relaxedAssignQuery = supabase
         .from("payment_wallets")
         .update(buildPaymentWalletAssignment(telegramId, orderId, expiresAt, nowIso))
         .eq("is_active", true)
         .eq("address", existingAddress)
-        .or(`assigned_to_telegram_id.is.null,assigned_to_telegram_id.eq.${String(telegramId)}`)
+        .or(`assigned_to_telegram_id.is.null,assigned_to_telegram_id.eq.${String(telegramId)}`);
+      relaxedAssignQuery = applyPaymentWalletPoolTagFilter(relaxedAssignQuery);
+      const { data: relaxedAssigned, error: relaxedAssignError } = await relaxedAssignQuery
         .select()
         .maybeSingle();
 
       if (relaxedAssignError) {
         if (isUniqueConstraintError(relaxedAssignError)) {
           const wallet = await claimPaymentWallet(orderId, telegramId, expiresAt);
-          if (wallet?.address && isLikelyTonAddress(wallet.address)) {
+          if (isPaymentWalletEligible(wallet)) {
             return updatePaymentOrderWalletAddress(orderId, wallet.address);
           }
           return normalizePaymentOrder(order);
@@ -2682,18 +3414,18 @@ async function ensurePaymentOrderWalletAssigned(order, telegramId, expiresAt, no
       assigned = relaxedAssigned || null;
     }
 
-    if (assigned?.address && isLikelyTonAddress(assigned.address)) {
+    if (isPaymentWalletEligible(assigned)) {
       return normalizePaymentOrder(order);
     }
   }
 
   const freshWallet = await claimUnassignedPaymentWalletOnly(orderId, telegramId, expiresAt);
-  if (freshWallet?.address && isLikelyTonAddress(freshWallet.address)) {
+  if (isPaymentWalletEligible(freshWallet)) {
     return updatePaymentOrderWalletAddress(orderId, freshWallet.address);
   }
 
   const wallet = await claimPaymentWallet(orderId, telegramId, expiresAt);
-  if (!wallet?.address || !isLikelyTonAddress(wallet.address)) {
+  if (!isPaymentWalletEligible(wallet)) {
     return normalizePaymentOrder(order);
   }
 
@@ -2703,14 +3435,17 @@ async function ensurePaymentOrderWalletAssigned(order, telegramId, expiresAt, no
 async function claimUnassignedPaymentWalletOnly(orderId, telegramId, expiresAt) {
   const nowIso = new Date().toISOString();
   const userId = String(telegramId);
+  await releaseIneligiblePaymentWalletAssignments(userId, nowIso);
 
   const claimCandidate = async (candidate) => {
-    if (!candidate?.id || !candidate?.address || !isLikelyTonAddress(candidate.address)) return null;
-    const { data, error } = await supabase
+    if (!candidate?.id || !isPaymentWalletEligible(candidate, { requireUnassigned: true })) return null;
+    let claimQuery = supabase
       .from("payment_wallets")
       .update(buildPaymentWalletAssignment(userId, orderId, expiresAt, nowIso))
       .eq("id", candidate.id)
-      .is("assigned_to_telegram_id", null)
+      .is("assigned_to_telegram_id", null);
+    claimQuery = applyPaymentWalletPoolTagFilter(claimQuery);
+    const { data, error } = await claimQuery
       .select()
       .maybeSingle();
 
@@ -2719,13 +3454,13 @@ async function claimUnassignedPaymentWalletOnly(orderId, telegramId, expiresAt) 
       if (isStatementTimeoutError(error)) return null;
       throw error;
     }
-    return data?.address && isLikelyTonAddress(data.address) ? data : null;
+    return isPaymentWalletEligible(data) ? data : null;
   };
 
   const lookupCandidates = async (respectCooldown, strictNetworkToken = true) => {
     let query = supabase
       .from("payment_wallets")
-      .select("id,address,network,token")
+      .select("id,address,network,token,is_active,assigned_to_telegram_id,wallet_pool_tag")
       .eq("is_active", true)
       .is("assigned_to_telegram_id", null);
 
@@ -2734,6 +3469,7 @@ async function claimUnassignedPaymentWalletOnly(orderId, telegramId, expiresAt) 
         .eq("network", PAYMENT_NETWORK)
         .eq("token", PAYMENT_TOKEN);
     }
+    query = applyPaymentWalletPoolTagFilter(query);
 
     if (respectCooldown) {
       query = query.or(`cooldown_until.is.null,cooldown_until.lte.${nowIso}`);
@@ -2752,7 +3488,7 @@ async function claimUnassignedPaymentWalletOnly(orderId, telegramId, expiresAt) 
       throw error;
     }
 
-    return (data || []).filter((wallet) => isLikelyTonAddress(wallet?.address));
+    return (data || []).filter((wallet) => isPaymentWalletEligible(wallet, { requireUnassigned: true }));
   };
 
   for (const respectCooldown of [true, false]) {
@@ -2844,7 +3580,7 @@ async function refreshPendingPaymentOrder(order, telegramId, now, expiresAt) {
     wallet_address: walletAddress,
     amount: PAYMENT_AMOUNT_TON,
     required_amount: PAYMENT_AMOUNT_TON,
-    assigned_at: now.toISOString(),
+    assigned_at: order.assigned_at || now.toISOString(),
     expires_at: expiresAt,
     last_checked_at: null,
     updated_at: now.toISOString()
@@ -3083,38 +3819,160 @@ async function fetchJsonWithTimeout(url, { headers = {}, timeoutMs = TONAPI_REQU
   throw lastError || new Error("Request failed");
 }
 
+async function fetchToncenterPaymentTransactions(address, minTimestamp) {
+  const params = new URLSearchParams({
+    address,
+    limit: "100"
+  });
+  const payload = await fetchJsonWithTimeout(`https://toncenter.com/api/v2/getTransactions?${params.toString()}`, {
+    timeoutMs: TONAPI_REQUEST_TIMEOUT_MS,
+    retries: Math.max(1, TONAPI_RETRY_COUNT)
+  });
+  const transactions = Array.isArray(payload.result) ? payload.result : [];
+  const transfers = [];
+
+  for (const tx of transactions) {
+    const timestampMs = Number(tx.utime || 0) * 1000;
+    if (timestampMs && timestampMs < minTimestamp) continue;
+
+    const message = tx.in_msg || {};
+    const to = readTonAccountAddress(message.destination || message.dst || message.to);
+    const value = String(message.value || "0");
+    if (!to || !value || value === "0") continue;
+
+    const txId = tx.transaction_id || {};
+    const txHash = normalizeAddress(
+      txId.hash ||
+      message.hash ||
+      tx.hash ||
+      `${txId.lt || tx.lt || timestampMs}:${to}:${value}`
+    );
+
+    transfers.push({
+      hash: txHash,
+      from: readTonAccountAddress(message.source || message.src || message.from),
+      to,
+      value,
+      decimals: PAYMENT_TOKEN_DECIMALS,
+      token_address: "",
+      token_symbol: PAYMENT_TOKEN,
+      timestamp_ms: timestampMs || Date.now(),
+      raw: { provider: "toncenter", transaction: tx }
+    });
+  }
+
+  return transfers;
+}
+
+async function fetchToncenterOutgoingTransfers(address, minTimestamp) {
+  const params = new URLSearchParams({
+    address,
+    limit: "100"
+  });
+  const payload = await fetchJsonWithTimeout(`https://toncenter.com/api/v2/getTransactions?${params.toString()}`, {
+    timeoutMs: TONAPI_REQUEST_TIMEOUT_MS,
+    retries: Math.max(1, TONAPI_RETRY_COUNT)
+  });
+  const transactions = Array.isArray(payload.result) ? payload.result : [];
+  const transfers = [];
+
+  for (const tx of transactions) {
+    const timestampMs = Number(tx.utime || 0) * 1000;
+    if (timestampMs && timestampMs < minTimestamp) continue;
+
+    const txId = tx.transaction_id || {};
+    const txHash = normalizeAddress(txId.hash || tx.hash || `${txId.lt || tx.lt || timestampMs}:${address}`);
+    const outMessages = Array.isArray(tx.out_msgs) ? tx.out_msgs : [];
+
+    for (const message of outMessages) {
+      const from = readTonAccountAddress(message.source || message.src || message.from || address);
+      const to = readTonAccountAddress(message.destination || message.dst || message.to);
+      const value = String(message.value || "0");
+      if (!to || !value || value === "0") continue;
+
+      transfers.push({
+        hash: normalizeAddress(message.hash || txHash),
+        transaction_hash: txHash,
+        from,
+        to,
+        value,
+        decimals: PAYMENT_TOKEN_DECIMALS,
+        token_address: "",
+        token_symbol: PAYMENT_TOKEN,
+        timestamp_ms: timestampMs || Date.now(),
+        raw: { provider: "toncenter", transaction: tx, message }
+      });
+    }
+  }
+
+  return transfers;
+}
+
+function uniqueTonTransfers(transfers) {
+  const byKey = new Map();
+  for (const transfer of transfers || []) {
+    const key = [
+      normalizeAddress(transfer.hash),
+      decodeTonAddressToRaw(transfer.to) || normalizeAddress(transfer.to),
+      String(transfer.value || "0")
+    ].join("|");
+    if (!byKey.has(key)) byKey.set(key, transfer);
+  }
+  return [...byKey.values()];
+}
+
 async function fetchTonPaymentTransactions(address, minTimestamp) {
   const all = [];
   let beforeLt = "";
+  let tonapiError = null;
 
-  for (let page = 0; page < 5; page += 1) {
-    const params = new URLSearchParams({
-      limit: "100"
-    });
-    if (beforeLt) params.set("before_lt", beforeLt);
+  try {
+    for (let page = 0; page < 5; page += 1) {
+      const params = new URLSearchParams({
+        limit: "100"
+      });
+      if (beforeLt) params.set("before_lt", beforeLt);
 
-    const headers = { Accept: "application/json" };
-    if (TONAPI_KEY) headers.Authorization = `Bearer ${TONAPI_KEY}`;
+      const headers = { Accept: "application/json" };
+      if (TONAPI_KEY) headers.Authorization = `Bearer ${TONAPI_KEY}`;
 
-    const payload = await fetchJsonWithTimeout(`${TONAPI_BASE_URL}/v2/accounts/${encodeURIComponent(address)}/events?${params.toString()}`, { headers });
+      const payload = await fetchJsonWithTimeout(`${TONAPI_BASE_URL}/v2/accounts/${encodeURIComponent(address)}/events?${params.toString()}`, { headers });
 
-    const events = Array.isArray(payload.events) ? payload.events : (Array.isArray(payload) ? payload : []);
-    all.push(...events);
+      const events = Array.isArray(payload.events) ? payload.events : (Array.isArray(payload) ? payload : []);
+      all.push(...events);
 
-    const oldest = events[events.length - 1];
-    const oldestTime = Number(oldest?.timestamp || oldest?.utime || 0) * 1000;
-    beforeLt = normalizeAddress(payload.next_from || oldest?.lt);
-    if (!beforeLt || !events.length || (oldestTime && oldestTime < minTimestamp)) break;
+      const oldest = events[events.length - 1];
+      const oldestTime = Number(oldest?.timestamp || oldest?.utime || 0) * 1000;
+      beforeLt = normalizeAddress(payload.next_from || oldest?.lt);
+      if (!beforeLt || !events.length || (oldestTime && oldestTime < minTimestamp)) break;
+    }
+  } catch (err) {
+    tonapiError = err;
   }
 
-  return extractTonPaymentTransfers(all);
+  const tonapiTransfers = extractTonPaymentTransfers(all);
+  let toncenterTransfers = [];
+  try {
+    toncenterTransfers = await fetchToncenterPaymentTransactions(address, minTimestamp);
+  } catch (err) {
+    if (!tonapiTransfers.length && tonapiError) throw tonapiError;
+    console.warn("[payments] toncenter fallback scan skipped:", err.message || String(err));
+  }
+
+  return uniqueTonTransfers([...tonapiTransfers, ...toncenterTransfers]);
 }
 
 function findMatchingTonTransfer(order, transactions) {
   const wallet = normalizeAddress(order.wallet_address);
   const minReceivedUnits = decimalToUnits(PAYMENT_MIN_RECEIVED_TON);
   const maxReceivedUnits = decimalToUnits(PAYMENT_MAX_RECEIVED_TON);
-  const assignedAt = new Date(order.assigned_at || order.created_at || Date.now()).getTime() - 60 * 1000;
+  const createdAtMs = new Date(order.created_at || order.assigned_at || Date.now()).getTime();
+  const assignedAtMs = new Date(order.assigned_at || order.created_at || Date.now()).getTime();
+  const earliestOrderMs = Math.min(
+    Number.isFinite(createdAtMs) ? createdAtMs : Date.now(),
+    Number.isFinite(assignedAtMs) ? assignedAtMs : Date.now()
+  );
+  const assignedAt = earliestOrderMs - 60 * 1000;
   const lateUntil = addMinutes(new Date(order.expires_at || Date.now()), PAYMENT_LATE_GRACE_MINUTES).getTime();
 
   return (transactions || []).find((tx) => {
@@ -3165,17 +4023,10 @@ async function unlockWithdrawAndCreditActivationRefund(telegramId, now = new Dat
 
   if (currentUserError) throw currentUserError;
 
-  const refundAmount = Number(ACTIVATION_REFUND_TON);
-  const shouldCreditRefund = !currentUser?.withdraw_unlocked && refundAmount > 0;
   const updateBody = {
-    withdraw_unlocked: true,
     withdraw_payment_verified_at: now,
     updated_at: now
   };
-
-  if (shouldCreditRefund) {
-    updateBody.balance = Number(currentUser?.balance || 0) + refundAmount;
-  }
 
   const { error: userError } = await supabase
     .from("users")
@@ -3185,23 +4036,31 @@ async function unlockWithdrawAndCreditActivationRefund(telegramId, now = new Dat
   if (userError) throw userError;
 
   return {
-    credited_refund: shouldCreditRefund,
-    refund_amount: shouldCreditRefund ? refundAmount : 0
+    activation_deposit_verified: true,
+    main_withdraw_unlocked: Boolean(currentUser?.withdraw_unlocked),
+    credited_refund: false,
+    refund_amount: 0
   };
 }
 
 async function getDepositRefundWithdraw(telegramId) {
   const { data, error } = await supabase
     .from("withdraws")
-    .select("id,status,wallet_address,amount,created_at")
+    .select("*")
     .eq("telegram_id", String(telegramId))
     .eq("wallet_type", "TON_DEPOSIT_REFUND")
-    .in("status", ["pending", "processing", "approved", "paid", "auto_paid", "submitted", "submitted_unconfirmed"])
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
 
   if (error && !["42P01", "42703", "PGRST116"].includes(error.code)) throw error;
+  if (data && ["rejected", "failed", "processing", "submitted", "submitted_unconfirmed"].includes(String(data.status || ""))) {
+    const reconciled = await reconcileDepositRefundWithdrawFromChain(data).catch((err) => {
+      console.warn("[withdraw] status reconciliation skipped:", err.message || String(err));
+      return null;
+    });
+    if (reconciled?.withdraw) return reconciled.withdraw;
+  }
   return data || null;
 }
 
@@ -3242,7 +4101,7 @@ async function ensureWalletActivationNotification(telegramId) {
   return !insertError;
 }
 
-async function confirmUsdtPayment(order, tx) {
+async function confirmUsdtPayment(order, tx, options = {}) {
   const txHash = tx.hash;
   if (!txHash || await isPaymentTxAlreadyProcessed(txHash)) return false;
 
@@ -3250,8 +4109,12 @@ async function confirmUsdtPayment(order, tx) {
   const paidAmount = unitsToDecimalString(tx.value || "0", decimals);
   const paidAt = new Date(Number(tx.timestamp_ms || Date.now())).toISOString();
   const now = new Date().toISOString();
+  const matchedWalletAddress = normalizeAddress(options.matchedWalletAddress || tx.to || order.wallet_address);
+  const allowedStatuses = Array.isArray(options.allowedStatuses) && options.allowedStatuses.length
+    ? options.allowedStatuses.map((status) => String(status))
+    : ["pending"];
 
-  const { data: confirmedOrder, error: orderError } = await supabase
+  let confirmQuery = supabase
     .from("payment_orders")
     .update({
       status: "confirmed",
@@ -3260,11 +4123,20 @@ async function confirmUsdtPayment(order, tx) {
       paid_amount: paidAmount,
       paid_at: paidAt,
       raw_event: tx.raw || tx,
+      wallet_address: matchedWalletAddress || order.wallet_address,
+      admin_wallet: matchedWalletAddress || order.wallet_address,
       updated_at: now
     })
     .eq("id", order.id)
-    .eq("status", "pending")
-    .is("tx_hash", null)
+    .is("tx_hash", null);
+
+  if (allowedStatuses.includes("*")) {
+    confirmQuery = confirmQuery.neq("status", "confirmed");
+  } else {
+    confirmQuery = confirmQuery.in("status", allowedStatuses);
+  }
+
+  const { data: confirmedOrder, error: orderError } = await confirmQuery
     .select()
     .maybeSingle();
 
@@ -3279,7 +4151,7 @@ async function confirmUsdtPayment(order, tx) {
       telegram_id: String(order.telegram_id),
       network: PAYMENT_NETWORK,
       token: PAYMENT_TOKEN,
-      to_wallet: order.wallet_address,
+      to_wallet: matchedWalletAddress || order.wallet_address,
       amount: Number(paidAmount),
       tx_hash: txHash
     });
@@ -3291,21 +4163,91 @@ async function confirmUsdtPayment(order, tx) {
     .update({
       assigned_order_id: null,
       assigned_until: null,
+      assigned_to_telegram_id: String(order.telegram_id),
       cooldown_until: null,
       last_scanned_at: now,
       updated_at: now
     })
-    .eq("address", order.wallet_address);
+    .eq("address", matchedWalletAddress || order.wallet_address);
 
   return true;
 }
 
-async function scanPaymentOrder(order) {
+async function getTrustedPaymentScanWallets(order, extraWalletAddresses = []) {
+  const trusted = [];
+  const push = (address) => {
+    const normalized = normalizeAddress(address);
+    if (!isLikelyTonAddress(normalized)) return;
+    if (!trusted.some((item) => sameTonAddress(item, normalized))) trusted.push(normalized);
+  };
+
+  push(order.wallet_address);
+
+  const telegramId = String(order.telegram_id || "").trim();
+  if (isSafeTelegramId(telegramId)) {
+    const { data: userOrders, error: orderError } = await supabase
+      .from("payment_orders")
+      .select("wallet_address,admin_wallet")
+      .eq("telegram_id", telegramId)
+      .eq("network", PAYMENT_NETWORK)
+      .eq("token", PAYMENT_TOKEN)
+      .not("wallet_address", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    if (orderError && !["42P01", "42703"].includes(orderError.code)) throw orderError;
+    for (const item of userOrders || []) {
+      push(item.wallet_address);
+      push(item.admin_wallet);
+    }
+
+    let walletQuery = supabase
+      .from("payment_wallets")
+      .select("address,network,token,is_active,wallet_pool_tag,assigned_to_telegram_id")
+      .eq("assigned_to_telegram_id", telegramId)
+      .eq("is_active", true)
+      .limit(20);
+    walletQuery = applyPaymentWalletPoolTagFilter(walletQuery);
+    const { data: assignedWallets, error: walletError } = await walletQuery;
+
+    if (walletError && !["42P01", "42703", "PGRST116"].includes(walletError.code)) throw walletError;
+    for (const wallet of assignedWallets || []) {
+      if (isPaymentWalletEligible(wallet)) push(wallet.address);
+    }
+  }
+
+  for (const extra of extraWalletAddresses || []) {
+    const normalized = normalizeAddress(extra);
+    if (!isLikelyTonAddress(normalized)) continue;
+    if (trusted.some((item) => sameTonAddress(item, normalized))) push(normalized);
+  }
+
+  return trusted;
+}
+
+async function scanPaymentOrder(order, options = {}) {
   if (!order?.wallet_address) return false;
   const minTimestamp = Math.max(0, new Date(order.assigned_at || order.created_at || Date.now()).getTime() - 2 * 60 * 1000);
-  const transactions = await fetchTonPaymentTransactions(order.wallet_address, minTimestamp);
-  const match = findMatchingTonTransfer(order, transactions);
   const now = new Date().toISOString();
+  const scanWallets = await getTrustedPaymentScanWallets(order, options.extraWalletAddresses || []);
+  let match = null;
+  let matchedWalletAddress = "";
+
+  for (const walletAddress of scanWallets) {
+    const scanOrder = { ...order, wallet_address: walletAddress };
+    const transactions = await fetchTonPaymentTransactions(walletAddress, minTimestamp);
+    match = findMatchingTonTransfer(scanOrder, transactions);
+
+    await supabase
+      .from("payment_wallets")
+      .update({ last_scanned_at: now, updated_at: now })
+      .eq("address", walletAddress);
+
+    if (match) {
+      matchedWalletAddress = walletAddress;
+      break;
+    }
+  }
 
   await supabase
     .from("payment_orders")
@@ -3313,12 +4255,89 @@ async function scanPaymentOrder(order) {
     .eq("id", order.id)
     .eq("status", "pending");
 
-  await supabase
-    .from("payment_wallets")
-    .update({ last_scanned_at: now, updated_at: now })
-    .eq("address", order.wallet_address);
+  if (!scanWallets.some((walletAddress) => sameTonAddress(walletAddress, order.wallet_address))) {
+    await supabase
+      .from("payment_wallets")
+      .update({ last_scanned_at: now, updated_at: now })
+      .eq("address", order.wallet_address);
+  }
 
-  return match ? confirmUsdtPayment(order, match) : false;
+  return match ? confirmUsdtPayment(order, match, { matchedWalletAddress }) : false;
+}
+
+async function rescueTonDepositForPaymentOrder({ orderId, telegramId, walletAddress, txHash }) {
+  const address = normalizeAddress(walletAddress);
+  if (!orderId) throw new Error("order_id kerak");
+  if (!isLikelyTonAddress(address)) throw new Error("TON deposit wallet address noto'g'ri");
+
+  let orderQuery = supabase
+    .from("payment_orders")
+    .select("*")
+    .eq("id", orderId)
+    .eq("network", PAYMENT_NETWORK)
+    .eq("token", PAYMENT_TOKEN)
+    .limit(1)
+    .maybeSingle();
+  const { data: order, error: orderError } = await orderQuery;
+  if (orderError) throw orderError;
+  if (!order) throw new Error("Payment order topilmadi");
+  if (telegramId && String(order.telegram_id) !== String(telegramId)) {
+    throw new Error("Order telegram_id bilan mos emas");
+  }
+  if (String(order.status || "") === "confirmed") {
+    return { rescued: false, reason: "already_confirmed", order: normalizePaymentOrder(order) };
+  }
+
+  let walletQuery = supabase
+    .from("payment_wallets")
+    .select("id,address,network,token,is_active,wallet_pool_tag,assigned_to_telegram_id")
+    .eq("address", address)
+    .limit(1)
+    .maybeSingle();
+  walletQuery = applyPaymentWalletPoolTagFilter(walletQuery);
+  const { data: wallet, error: walletError } = await walletQuery;
+  if (walletError && !["42P01", "42703", "PGRST116"].includes(walletError.code)) throw walletError;
+  if (!isPaymentWalletEligible(wallet)) {
+    throw new Error("Rescue address active mnemonic payment_wallets pool ichida topilmadi");
+  }
+  if (wallet.assigned_to_telegram_id && String(wallet.assigned_to_telegram_id) !== String(order.telegram_id)) {
+    throw new Error("Rescue wallet boshqa userga biriktirilgan");
+  }
+
+  const minTimestamp = Math.max(0, new Date(order.created_at || order.assigned_at || Date.now()).getTime() - 10 * 60 * 1000);
+  const transactions = await fetchTonPaymentTransactions(address, minTimestamp);
+  const filteredTransactions = txHash
+    ? transactions.filter((tx) => normalizeAddress(tx.hash) === normalizeAddress(txHash))
+    : transactions;
+  const match = findMatchingTonTransfer({ ...order, wallet_address: address }, filteredTransactions);
+  if (!match) {
+    throw new Error(`Rescue uchun ${PAYMENT_MIN_RECEIVED_TON}-${PAYMENT_MAX_RECEIVED_TON} TON kirim topilmadi`);
+  }
+
+  const confirmed = await confirmUsdtPayment(order, match, {
+    matchedWalletAddress: address,
+    allowedStatuses: ["pending", "expired"]
+  });
+  if (!confirmed) throw new Error("Rescue transaction allaqachon ishlangan yoki order tasdiqlanmadi");
+
+  const { data: confirmedOrder, error: confirmedError } = await supabase
+    .from("payment_orders")
+    .select("*")
+    .eq("id", order.id)
+    .maybeSingle();
+  if (confirmedError) throw confirmedError;
+
+  return {
+    rescued: true,
+    order: normalizePaymentOrder(confirmedOrder),
+    tx: {
+      hash: match.hash,
+      from: match.from || null,
+      to: match.to || null,
+      amount_ton: Number(unitsToDecimalString(match.value || "0", Number(match.decimals ?? PAYMENT_TOKEN_DECIMALS))),
+      timestamp: match.timestamp_ms ? new Date(Number(match.timestamp_ms)).toISOString() : null
+    }
+  };
 }
 
 function createPaymentScannerState() {
@@ -4122,6 +5141,7 @@ function buildWalletImportPlan(walletCapacity) {
 async function buildDepositRehearsalDbAudit(options = {}) {
   const now = new Date();
   const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+  const failedRefundAuditSince = new Date(Math.max(new Date(oneDayAgo).getTime(), REFUND_FAILURE_AUDIT_START_MS || 0)).toISOString();
   const freshWindowMinutes = Math.max(PAYMENT_ORDER_TTL_MINUTES + PAYMENT_LATE_GRACE_MINUTES, 45);
   const freshWindowIso = new Date(now.getTime() - freshWindowMinutes * 60 * 1000).toISOString();
   const staleRefundProcessingBefore = new Date(now.getTime() - 15 * 60 * 1000).toISOString();
@@ -4177,7 +5197,7 @@ async function buildDepositRehearsalDbAudit(options = {}) {
     depositAuditCount("withdraws", "deposit_refund_withdraws_failed_24h", (query) => query
       .eq("wallet_type", "TON_DEPOSIT_REFUND")
       .in("status", ["rejected", "failed"])
-      .gte("created_at", oneDayAgo))
+      .gte("created_at", failedRefundAuditSince))
   ]);
   const byLabel = compactCountMap(counts);
   const pendingTotal = Number(byLabel.pending_orders_total?.count || 0);
@@ -5642,7 +6662,7 @@ function buildCanaryRolloutReport(snapshot, dbAudit) {
   };
 }
 
-function buildProductionLaunchCertificationReport(snapshot, dbAudit) {
+function buildProductionLaunchCertificationReport(snapshot, dbAudit, orderRefresh = null) {
   const finalGate = snapshot?.gate || {};
   const marketingGate = buildMarketingSpikeGate(snapshot);
   const rehearsal = buildDepositRehearsalReport(snapshot, dbAudit);
@@ -5668,6 +6688,7 @@ function buildProductionLaunchCertificationReport(snapshot, dbAudit) {
   const availableWallets = Number(snapshot?.wallet_capacity?.counts?.available_wallets?.count ?? 0);
   const remoteSignerWalletFiles = Number(snapshot?.ton_signer?.remote_signer?.wallet_files || 0);
   const pendingOrders = Number(snapshot?.backlog?.counts?.pending_orders?.count || 0);
+  const realTestSignals = getControlledRealTestSignals(orderRefresh, dbAudit);
   const checks = [];
   const add = (name, ok, detail, severity = "blocker") => checks.push({ name, ok: Boolean(ok), detail: String(detail), severity });
 
@@ -5689,9 +6710,9 @@ function buildProductionLaunchCertificationReport(snapshot, dbAudit) {
   add("remote_signer_wallet_files_cover_pool", remoteSignerWalletFiles >= CAPACITY_TARGET_USERS, `wallet_files=${remoteSignerWalletFiles}, target=${CAPACITY_TARGET_USERS}`);
   add("payment_backlog_under_spike_limit", pendingOrders <= MARKETING_SPIKE_MAX_PENDING_BACKLOG, `pending=${pendingOrders}, max=${MARKETING_SPIKE_MAX_PENDING_BACKLOG}`);
   add("db_audit_readable", dbAudit?.counts_readable === true, `counts_readable=${Boolean(dbAudit?.counts_readable)}`);
-  add("real_deposit_confirmed_24h", confirmedOrders24h > 0 && paymentTransactions24h > 0, `confirmed_orders_24h=${confirmedOrders24h}, payment_transactions_24h=${paymentTransactions24h}`, "manual_test");
-  add("real_refund_completed_24h", completedRefunds24h > 0, `completed_refunds_24h=${completedRefunds24h}`, "manual_test");
-  add("failed_refunds_zero_24h", failedRefunds24h === 0, `failed_refunds_24h=${failedRefunds24h}`, "blocker");
+  add("real_deposit_confirmed_24h", realTestSignals.deposit_confirmed, `confirmed_orders_24h=${confirmedOrders24h}, payment_transactions_24h=${paymentTransactions24h}, selected_order=${realTestSignals.selected_confirmed_order_id || "none"}`, "manual_test");
+  add("real_refund_completed_24h", realTestSignals.refund_passed, `completed_refunds_24h=${completedRefunds24h}, selected_refund_status=${realTestSignals.refund_latest_status || "none"}`, "manual_test");
+  add("failed_refunds_zero_24h", realTestSignals.failed_refunds_zero_or_recovered, `failed_refunds_24h=${failedRefunds24h}, recovered_by_selected_user=${realTestSignals.failed_refunds_recovered_for_selected_user}`, "blocker");
   add("stale_processing_refunds_zero", staleProcessingRefunds15m === 0, `stale_processing_15m=${staleProcessingRefunds15m}`, "blocker");
 
   const blockers = checks.filter((item) => !item.ok && item.severity === "blocker");
@@ -5735,6 +6756,10 @@ function buildProductionLaunchCertificationReport(snapshot, dbAudit) {
       completed_refunds_24h: completedRefunds24h,
       failed_refunds_24h: failedRefunds24h,
       stale_processing_refunds_15m: staleProcessingRefunds15m,
+      selected_real_test_deposit_confirmed: realTestSignals.deposit_confirmed,
+      selected_real_test_refund_approved: realTestSignals.refund_approved,
+      selected_real_test_refund_remote_confirmed: realTestSignals.refund_remote_confirmed,
+      failed_refunds_recovered_by_selected_test: realTestSignals.failed_refunds_recovered_for_selected_user,
       final_gate_status: finalGate.status || "unknown",
       marketing_gate_status: marketingGate.status,
       canary_status: canary.status,
@@ -5789,8 +6814,8 @@ function buildProductionLaunchCertificationReport(snapshot, dbAudit) {
   };
 }
 
-function buildControlledRealTestAutopilotReport(snapshot, dbAudit) {
-  const certification = buildProductionLaunchCertificationReport(snapshot, dbAudit);
+function buildControlledRealTestAutopilotReport(snapshot, dbAudit, orderRefresh = null) {
+  const certification = buildProductionLaunchCertificationReport(snapshot, dbAudit, orderRefresh);
   const controlRoom = buildRealTonTestControlRoomReport(snapshot, dbAudit);
   const refundSafety = buildDepositRefundPayoutSafetyReport(snapshot, dbAudit);
   const canary = buildCanaryRolloutReport(snapshot, dbAudit);
@@ -5802,6 +6827,7 @@ function buildControlledRealTestAutopilotReport(snapshot, dbAudit) {
   const staleProcessingRefunds15m = Number(counts.deposit_refund_withdraws_processing_stale_15m?.count || 0);
   const pendingRefunds = Number(counts.deposit_refund_withdraws_pending?.count || 0);
   const processingRefunds = Number(counts.deposit_refund_withdraws_processing?.count || 0);
+  const realTestSignals = getControlledRealTestSignals(orderRefresh, dbAudit);
   const scannerWorkersAlive = Number(certification.observed.scanner_workers_alive || 0);
   const activeShards = Number(certification.observed.active_shards || 0);
   const duplicateShards = Array.isArray(certification.observed.duplicate_shards) ? certification.observed.duplicate_shards : [];
@@ -5820,12 +6846,12 @@ function buildControlledRealTestAutopilotReport(snapshot, dbAudit) {
   add("duplicate_shards_zero", duplicateShards.length === 0, `duplicates=${duplicateShards.length}`);
   add("wallet_pool_buffer_positive", availableWallets >= CAPACITY_TARGET_USERS, `available=${availableWallets}, target=${CAPACITY_TARGET_USERS}`);
   add("remote_signer_wallets_cover_pool", remoteSignerWalletFiles >= CAPACITY_TARGET_USERS, `wallet_files=${remoteSignerWalletFiles}, target=${CAPACITY_TARGET_USERS}`);
-  add("failed_refunds_zero_24h", failedRefunds24h === 0, `failed_refunds_24h=${failedRefunds24h}`);
+  add("failed_refunds_zero_24h", realTestSignals.failed_refunds_zero_or_recovered, `failed_refunds_24h=${failedRefunds24h}, recovered_by_selected_user=${realTestSignals.failed_refunds_recovered_for_selected_user}`);
   add("stale_processing_refunds_zero", staleProcessingRefunds15m === 0, `stale_processing_refunds_15m=${staleProcessingRefunds15m}`);
   add("pending_refunds_not_piling_up", pendingRefunds + processingRefunds <= 25, `pending=${pendingRefunds}, processing=${processingRefunds}`, "warning");
   add("pending_order_backlog_small_for_manual_test", pendingOrders <= 100, `pending_orders=${pendingOrders}`, "warning");
-  add("real_deposit_signal_seen_24h", confirmedOrders24h > 0 && paymentTransactions24h > 0, `confirmed_orders_24h=${confirmedOrders24h}, payment_transactions_24h=${paymentTransactions24h}`, "manual_signal");
-  add("real_refund_signal_seen_24h", completedRefunds24h > 0, `completed_refunds_24h=${completedRefunds24h}`, "manual_signal");
+  add("real_deposit_signal_seen_24h", realTestSignals.deposit_confirmed, `confirmed_orders_24h=${confirmedOrders24h}, payment_transactions_24h=${paymentTransactions24h}, selected_order=${realTestSignals.selected_confirmed_order_id || "none"}`, "manual_signal");
+  add("real_refund_signal_seen_24h", realTestSignals.refund_passed, `completed_refunds_24h=${completedRefunds24h}, selected_refund_status=${realTestSignals.refund_latest_status || "none"}`, "manual_signal");
 
   const blockers = checks.filter((item) => !item.ok && item.severity === "blocker");
   const warnings = [
@@ -5837,7 +6863,7 @@ function buildControlledRealTestAutopilotReport(snapshot, dbAudit) {
   const missingSignals = checks.filter((item) => !item.ok && item.severity === "manual_signal");
   const uniqueWarnings = Array.from(new Map(warnings.map((item) => [`${item.source || "local"}:${item.name}:${item.detail}`, item])).values());
   const readyForFirstControlledDeposit = blockers.length === 0;
-  const realTestPassed = missingSignals.length === 0;
+  const realTestPassed = realTestSignals.real_test_passed || missingSignals.length === 0;
   const status = blockers.length
     ? "blocked"
     : (realTestPassed ? "real_test_passed" : (uniqueWarnings.length ? "watch_ready_for_real_test" : "ready_for_real_test"));
@@ -5868,6 +6894,10 @@ function buildControlledRealTestAutopilotReport(snapshot, dbAudit) {
       completed_refunds_24h: completedRefunds24h,
       failed_refunds_24h: failedRefunds24h,
       stale_processing_refunds_15m: staleProcessingRefunds15m,
+      selected_real_test_deposit_confirmed: realTestSignals.deposit_confirmed,
+      selected_real_test_refund_approved: realTestSignals.refund_approved,
+      selected_real_test_refund_remote_confirmed: realTestSignals.refund_remote_confirmed,
+      failed_refunds_recovered_by_selected_test: realTestSignals.failed_refunds_recovered_for_selected_user,
       final_gate_status: certification.observed.final_gate_status,
       marketing_gate_status: certification.observed.marketing_gate_status,
       canary_status: certification.observed.canary_status,
@@ -5891,7 +6921,7 @@ function buildControlledRealTestAutopilotReport(snapshot, dbAudit) {
       },
       {
         id: "phase_2_single_refund",
-        status: blockers.length ? "blocked" : (completedRefunds24h > 0 ? "passed" : (confirmedOrders24h > 0 && paymentTransactions24h > 0 ? "ready" : "waiting_for_phase_1")),
+        status: blockers.length ? "blocked" : (realTestSignals.refund_passed ? "passed" : (realTestSignals.deposit_confirmed ? "ready" : "waiting_for_phase_1")),
         goal: "The same user binds their own TON wallet and receives one activation deposit refund payout.",
         success_signal: "completed_refunds_24h > 0 and failed_refunds_24h = 0"
       },
@@ -5953,8 +6983,8 @@ function buildControlledRealTestAutopilotReport(snapshot, dbAudit) {
 }
 
 function buildPreRealTestTomorrowGateReport(snapshot, dbAudit, orderRefresh) {
-  const autopilot = buildControlledRealTestAutopilotReport(snapshot, dbAudit);
-  const certification = buildProductionLaunchCertificationReport(snapshot, dbAudit);
+  const autopilot = buildControlledRealTestAutopilotReport(snapshot, dbAudit, orderRefresh);
+  const certification = buildProductionLaunchCertificationReport(snapshot, dbAudit, orderRefresh);
   const controlRoom = buildRealTonTestControlRoomReport(snapshot, dbAudit);
   const refundSafety = buildDepositRefundPayoutSafetyReport(snapshot, dbAudit);
   const canary = buildCanaryRolloutReport(snapshot, dbAudit);
@@ -5979,6 +7009,7 @@ function buildPreRealTestTomorrowGateReport(snapshot, dbAudit, orderRefresh) {
   const paymentTransactions24h = Number(autopilot.observed.payment_transactions_24h || 0);
   const completedRefunds24h = Number(autopilot.observed.completed_refunds_24h || 0);
   const freshPendingWithoutWallet = Number(dbAudit?.fresh_pending_without_wallet || counts.fresh_pending_orders_without_wallet?.count || 0);
+  const realTestSignals = getControlledRealTestSignals(orderRefresh, dbAudit);
   const checks = [];
   const add = (name, ok, detail, severity = "blocker") => checks.push({ name, ok: Boolean(ok), detail: String(detail), severity });
 
@@ -6006,7 +7037,7 @@ function buildPreRealTestTomorrowGateReport(snapshot, dbAudit, orderRefresh) {
   add("modal_refresh_action_understood", orderRefresh?.modal_refresh?.required_before_sending_ton !== true, orderRefresh?.modal_refresh?.required_before_sending_ton ? "open deposit modal before sending TON" : "not required", "operator_action");
   add("pending_orders_small_before_manual_test", pendingOrders <= 100, `pending=${pendingOrders}`, "warning");
   add("pending_refunds_not_piling_up", pendingRefunds + processingRefunds <= 25, `pending=${pendingRefunds}, processing=${processingRefunds}`, "warning");
-  add("failed_refunds_zero_24h", failedRefunds24h === 0, `failed_refunds_24h=${failedRefunds24h}`);
+  add("failed_refunds_zero_24h", realTestSignals.failed_refunds_zero_or_recovered, `failed_refunds_24h=${failedRefunds24h}, recovered_by_selected_user=${realTestSignals.failed_refunds_recovered_for_selected_user}`);
   add("stale_processing_refunds_zero", staleProcessingRefunds15m === 0, `stale_processing_refunds_15m=${staleProcessingRefunds15m}`);
   add("real_deposit_signal_missing_until_tomorrow", confirmedOrders24h > 0 && paymentTransactions24h > 0, `confirmed_orders_24h=${confirmedOrders24h}, payment_transactions_24h=${paymentTransactions24h}`, "expected_until_real_test");
   add("real_refund_signal_missing_until_tomorrow", completedRefunds24h > 0, `completed_refunds_24h=${completedRefunds24h}`, "expected_until_real_test");
@@ -6056,6 +7087,9 @@ function buildPreRealTestTomorrowGateReport(snapshot, dbAudit, orderRefresh) {
       completed_refunds_24h: completedRefunds24h,
       failed_refunds_24h: failedRefunds24h,
       stale_processing_refunds_15m: staleProcessingRefunds15m,
+      selected_real_test_deposit_confirmed: realTestSignals.deposit_confirmed,
+      selected_real_test_refund_approved: realTestSignals.refund_approved,
+      failed_refunds_recovered_by_selected_test: realTestSignals.failed_refunds_recovered_for_selected_user,
       final_gate_status: snapshot?.gate?.status || "unknown",
       incident_status: incident.status,
       security_status: security.status,
@@ -6137,7 +7171,7 @@ function buildPreRealTestTomorrowGateReport(snapshot, dbAudit, orderRefresh) {
 function buildNonRealTestCompletionGateReport(snapshot, dbAudit, orderRefresh) {
   const preTest = buildPreRealTestTomorrowGateReport(snapshot, dbAudit, orderRefresh);
   const marketingGate = buildMarketingSpikeGate(snapshot);
-  const certification = buildProductionLaunchCertificationReport(snapshot, dbAudit);
+  const certification = buildProductionLaunchCertificationReport(snapshot, dbAudit, orderRefresh);
   const hardening = buildProductionHardeningReport(snapshot);
   const monitoring = buildProductionMonitoringReport(snapshot);
   const sla = buildProductionSlaReport(snapshot);
@@ -6160,6 +7194,7 @@ function buildNonRealTestCompletionGateReport(snapshot, dbAudit, orderRefresh) {
   const confirmedOrders24h = Number(preTest.observed.confirmed_orders_24h || 0);
   const paymentTransactions24h = Number(preTest.observed.payment_transactions_24h || 0);
   const completedRefunds24h = Number(preTest.observed.completed_refunds_24h || 0);
+  const realTestSignals = getControlledRealTestSignals(orderRefresh, dbAudit);
   const paymentRangeValid =
     Number(PAYMENT_MIN_RECEIVED_TON) <= Number(PAYMENT_AMOUNT_TON) &&
     Number(PAYMENT_AMOUNT_TON) <= Number(PAYMENT_MAX_RECEIVED_TON);
@@ -6191,7 +7226,7 @@ function buildNonRealTestCompletionGateReport(snapshot, dbAudit, orderRefresh) {
   add("fresh_pending_without_wallet_zero", freshPendingWithoutWallet === 0, `fresh_pending_without_wallet=${freshPendingWithoutWallet}`);
   add("payment_backlog_under_spike_limit", pendingOrders <= MARKETING_SPIKE_MAX_PENDING_BACKLOG, `pending=${pendingOrders}, max=${MARKETING_SPIKE_MAX_PENDING_BACKLOG}`);
   add("refund_queue_not_piling_up", queueActive <= 25, `pending=${pendingRefunds}, processing=${processingRefunds}`, "warning");
-  add("failed_refunds_zero_24h", failedRefunds24h === 0, `failed_refunds_24h=${failedRefunds24h}`);
+  add("failed_refunds_zero_24h", realTestSignals.failed_refunds_zero_or_recovered, `failed_refunds_24h=${failedRefunds24h}, recovered_by_selected_user=${realTestSignals.failed_refunds_recovered_for_selected_user}`);
   add("stale_processing_refunds_zero", staleProcessingRefunds15m === 0, `stale_processing_refunds_15m=${staleProcessingRefunds15m}`);
   add("db_audit_readable", dbAudit?.counts_readable === true, `counts_readable=${Boolean(dbAudit?.counts_readable)}`);
   add("confirmed_real_deposit_missing_until_real_test", confirmedOrders24h > 0 && paymentTransactions24h > 0, `confirmed_orders_24h=${confirmedOrders24h}, payment_transactions_24h=${paymentTransactions24h}`, "real_test_hold");
@@ -6269,6 +7304,9 @@ function buildNonRealTestCompletionGateReport(snapshot, dbAudit, orderRefresh) {
       pending_refunds: pendingRefunds,
       processing_refunds: processingRefunds,
       failed_refunds_24h: failedRefunds24h,
+      selected_real_test_deposit_confirmed: realTestSignals.deposit_confirmed,
+      selected_real_test_refund_approved: realTestSignals.refund_approved,
+      failed_refunds_recovered_by_selected_test: realTestSignals.failed_refunds_recovered_for_selected_user,
       stale_processing_refunds_15m: staleProcessingRefunds15m,
       confirmed_orders_24h: confirmedOrders24h,
       payment_transactions_24h: paymentTransactions24h,
@@ -6321,8 +7359,8 @@ function buildNonRealTestCompletionGateReport(snapshot, dbAudit, orderRefresh) {
 
 function buildPostRealTestCanaryGateReport(snapshot, dbAudit, orderRefresh) {
   const nonRealGate = buildNonRealTestCompletionGateReport(snapshot, dbAudit, orderRefresh);
-  const autopilot = buildControlledRealTestAutopilotReport(snapshot, dbAudit);
-  const certification = buildProductionLaunchCertificationReport(snapshot, dbAudit);
+  const autopilot = buildControlledRealTestAutopilotReport(snapshot, dbAudit, orderRefresh);
+  const certification = buildProductionLaunchCertificationReport(snapshot, dbAudit, orderRefresh);
   const canary = buildCanaryRolloutReport(snapshot, dbAudit);
   const refundSafety = buildDepositRefundPayoutSafetyReport(snapshot, dbAudit);
   const incident = buildIncidentStatusReport(snapshot);
@@ -6346,8 +7384,9 @@ function buildPostRealTestCanaryGateReport(snapshot, dbAudit, orderRefresh) {
   const staleProcessingRefunds15m = Number(autopilot.observed.stale_processing_refunds_15m || 0);
   const freshPendingWithoutWallet = Number(dbAudit?.fresh_pending_without_wallet || counts.fresh_pending_orders_without_wallet?.count || 0);
   const activeRefunds = pendingRefunds + processingRefunds;
-  const firstRealDepositPassed = confirmedOrders24h > 0 && paymentTransactions24h > 0;
-  const firstRefundPassed = completedRefunds24h > 0 && failedRefunds24h === 0 && staleProcessingRefunds15m === 0;
+  const realTestSignals = getControlledRealTestSignals(orderRefresh, dbAudit);
+  const firstRealDepositPassed = realTestSignals.deposit_confirmed;
+  const firstRefundPassed = realTestSignals.refund_passed;
   const checks = [];
   const add = (name, ok, detail, severity = "blocker") => checks.push({ name, ok: Boolean(ok), detail: String(detail), severity });
 
@@ -6371,7 +7410,7 @@ function buildPostRealTestCanaryGateReport(snapshot, dbAudit, orderRefresh) {
   add("fresh_pending_without_wallet_zero", freshPendingWithoutWallet === 0, `fresh_pending_without_wallet=${freshPendingWithoutWallet}`);
   add("payment_backlog_under_spike_limit", pendingOrders <= MARKETING_SPIKE_MAX_PENDING_BACKLOG, `pending=${pendingOrders}, max=${MARKETING_SPIKE_MAX_PENDING_BACKLOG}`);
   add("refund_queue_not_piling_up", activeRefunds <= 25, `pending=${pendingRefunds}, processing=${processingRefunds}`, "warning");
-  add("failed_refunds_zero_24h", failedRefunds24h === 0, `failed_refunds_24h=${failedRefunds24h}`);
+  add("failed_refunds_zero_24h", realTestSignals.failed_refunds_zero_or_recovered, `failed_refunds_24h=${failedRefunds24h}, recovered_by_selected_user=${realTestSignals.failed_refunds_recovered_for_selected_user}`);
   add("stale_processing_refunds_zero", staleProcessingRefunds15m === 0, `stale_processing_refunds_15m=${staleProcessingRefunds15m}`);
   add("phase_1_real_deposit_passed", firstRealDepositPassed, `confirmed_orders_24h=${confirmedOrders24h}, payment_transactions_24h=${paymentTransactions24h}`, "real_test_hold");
   add("phase_2_real_refund_passed", firstRefundPassed, `completed_refunds_24h=${completedRefunds24h}, failed_refunds_24h=${failedRefunds24h}, stale_processing_refunds_15m=${staleProcessingRefunds15m}`, "real_test_hold");
@@ -6404,7 +7443,8 @@ function buildPostRealTestCanaryGateReport(snapshot, dbAudit, orderRefresh) {
       id: "canary_10_20",
       users: "10-20",
       status: readyForCanary ? "next_after_canary_1" : "waiting_for_real_test",
-      promotion_rule: "Run 10-20 fresh users; scanner stays 64/64, no duplicate shards, no failed refunds."
+      promotion_rule: "Run 10-20 fresh users; scanner stays 64/64, no duplicate shards, no failed refunds.",
+      promotion_endpoint: "/ops/canary-10-20-control/summary?fresh=true"
     },
     {
       id: "canary_100",
@@ -6454,6 +7494,10 @@ function buildPostRealTestCanaryGateReport(snapshot, dbAudit, orderRefresh) {
       completed_refunds_24h: completedRefunds24h,
       failed_refunds_24h: failedRefunds24h,
       stale_processing_refunds_15m: staleProcessingRefunds15m,
+      selected_real_test_deposit_confirmed: realTestSignals.deposit_confirmed,
+      selected_real_test_refund_approved: realTestSignals.refund_approved,
+      selected_real_test_refund_remote_confirmed: realTestSignals.refund_remote_confirmed,
+      failed_refunds_recovered_by_selected_test: realTestSignals.failed_refunds_recovered_for_selected_user,
       final_gate_status: snapshot?.gate?.status || "unknown",
       certification_status: certification.status,
       canary_status: canary.status,
@@ -6529,7 +7573,7 @@ function buildPostRealTestCanaryGateReport(snapshot, dbAudit, orderRefresh) {
 }
 
 function buildControlledRealTestLiveWatchReport(snapshot, dbAudit, orderRefresh) {
-  const autopilot = buildControlledRealTestAutopilotReport(snapshot, dbAudit);
+  const autopilot = buildControlledRealTestAutopilotReport(snapshot, dbAudit, orderRefresh);
   const preTest = buildPreRealTestTomorrowGateReport(snapshot, dbAudit, orderRefresh);
   const nonRealGate = buildNonRealTestCompletionGateReport(snapshot, dbAudit, orderRefresh);
   const postCanaryGate = buildPostRealTestCanaryGateReport(snapshot, dbAudit, orderRefresh);
@@ -6558,8 +7602,9 @@ function buildControlledRealTestLiveWatchReport(snapshot, dbAudit, orderRefresh)
   const assignedWalletVisible = Boolean(orderRefresh?.assigned_wallet?.wallet?.present);
   const modalRefreshRequired = Boolean(orderRefresh?.modal_refresh?.required_before_sending_ton);
   const orderRefreshOk = orderRefresh?.ok === true;
-  const depositSeen = confirmedOrders24h > 0 && paymentTransactions24h > 0;
-  const refundSeen = completedRefunds24h > 0 && failedRefunds24h === 0 && staleProcessingRefunds15m === 0;
+  const realTestSignals = getControlledRealTestSignals(orderRefresh, dbAudit);
+  const depositSeen = realTestSignals.deposit_confirmed;
+  const refundSeen = realTestSignals.refund_passed;
   const realTestPassed = depositSeen && refundSeen;
   const activeRefunds = pendingRefunds + processingRefunds;
   const checks = [];
@@ -6583,7 +7628,7 @@ function buildControlledRealTestLiveWatchReport(snapshot, dbAudit, orderRefresh)
   add("fresh_pending_without_wallet_zero", freshPendingWithoutWallet === 0, `fresh_pending_without_wallet=${freshPendingWithoutWallet}`);
   add("payment_backlog_under_spike_limit", pendingOrders <= MARKETING_SPIKE_MAX_PENDING_BACKLOG, `pending=${pendingOrders}, max=${MARKETING_SPIKE_MAX_PENDING_BACKLOG}`);
   add("refund_queue_not_piling_up", activeRefunds <= 25, `pending=${pendingRefunds}, processing=${processingRefunds}`, "warning");
-  add("failed_refunds_zero_24h", failedRefunds24h === 0, `failed_refunds_24h=${failedRefunds24h}`);
+  add("failed_refunds_zero_24h", realTestSignals.failed_refunds_zero_or_recovered, `failed_refunds_24h=${failedRefunds24h}, recovered_by_selected_user=${realTestSignals.failed_refunds_recovered_for_selected_user}`);
   add("stale_processing_refunds_zero", staleProcessingRefunds15m === 0, `stale_processing_refunds_15m=${staleProcessingRefunds15m}`);
   add("order_refresh_ok", orderRefreshOk, `status=${orderRefresh?.status || "unknown"}, blockers=${orderRefresh?.blockers?.length || 0}`);
   add("assigned_wallet_visible", assignedWalletVisible, `assigned_wallet_present=${assignedWalletVisible}`, "operator_action");
@@ -6657,6 +7702,10 @@ function buildControlledRealTestLiveWatchReport(snapshot, dbAudit, orderRefresh)
       completed_refunds_24h: completedRefunds24h,
       failed_refunds_24h: failedRefunds24h,
       stale_processing_refunds_15m: staleProcessingRefunds15m,
+      selected_real_test_deposit_confirmed: realTestSignals.deposit_confirmed,
+      selected_real_test_refund_approved: realTestSignals.refund_approved,
+      selected_real_test_refund_remote_confirmed: realTestSignals.refund_remote_confirmed,
+      failed_refunds_recovered_by_selected_test: realTestSignals.failed_refunds_recovered_for_selected_user,
       final_gate_status: snapshot?.gate?.status || "unknown",
       ton_signer_ok: Boolean(snapshot?.ton_signer?.ok),
       redis_ok: Boolean(snapshot?.redis?.ok && snapshot?.redis_deep?.ok),
@@ -6752,7 +7801,7 @@ function buildTrafficRampCommandCenterReport(snapshot, dbAudit, orderRefresh) {
   const postCanaryGate = buildPostRealTestCanaryGateReport(snapshot, dbAudit, orderRefresh);
   const canary = buildCanaryRolloutReport(snapshot, dbAudit);
   const marketingGate = buildMarketingSpikeGate(snapshot);
-  const certification = buildProductionLaunchCertificationReport(snapshot, dbAudit);
+  const certification = buildProductionLaunchCertificationReport(snapshot, dbAudit, orderRefresh);
   const refundSafety = buildDepositRefundPayoutSafetyReport(snapshot, dbAudit);
   const incident = buildIncidentStatusReport(snapshot);
   const frontendContract = buildFrontendDeploymentContract();
@@ -6774,6 +7823,7 @@ function buildTrafficRampCommandCenterReport(snapshot, dbAudit, orderRefresh) {
   const staleProcessingRefunds15m = Number(liveWatch.observed.stale_processing_refunds_15m || 0);
   const activeRefunds = pendingRefunds + processingRefunds;
   const freshPendingWithoutWallet = Number(liveWatch.observed.fresh_pending_without_wallet || counts.fresh_pending_orders_without_wallet?.count || 0);
+  const realTestSignals = getControlledRealTestSignals(orderRefresh, dbAudit);
   const realTestPassed = liveWatch.real_test_passed === true && postCanaryGate.real_test_passed === true;
   const canary1Allowed = realTestPassed && liveWatch.ready_for_canary_1 === true && postCanaryGate.ready_for_canary_after_real_test === true;
   const checks = [];
@@ -6795,7 +7845,7 @@ function buildTrafficRampCommandCenterReport(snapshot, dbAudit, orderRefresh) {
   add("fresh_pending_without_wallet_zero", freshPendingWithoutWallet === 0, `fresh_pending_without_wallet=${freshPendingWithoutWallet}`);
   add("payment_backlog_under_spike_limit", pendingOrders <= MARKETING_SPIKE_MAX_PENDING_BACKLOG, `pending=${pendingOrders}, max=${MARKETING_SPIKE_MAX_PENDING_BACKLOG}`);
   add("refund_queue_not_piling_up", activeRefunds <= 25, `pending=${pendingRefunds}, processing=${processingRefunds}`, "warning");
-  add("failed_refunds_zero_24h", failedRefunds24h === 0, `failed_refunds_24h=${failedRefunds24h}`);
+  add("failed_refunds_zero_24h", realTestSignals.failed_refunds_zero_or_recovered, `failed_refunds_24h=${failedRefunds24h}, recovered_by_selected_user=${realTestSignals.failed_refunds_recovered_for_selected_user}`);
   add("stale_processing_refunds_zero", staleProcessingRefunds15m === 0, `stale_processing_refunds_15m=${staleProcessingRefunds15m}`);
   add("incident_clear_or_watch", incident.status === "clear" || incident.status === "watch", `status=${incident.status}`);
   add("frontend_contract_ready", frontendContract.status === "ready", `status=${frontendContract.status}`);
@@ -6851,7 +7901,7 @@ function buildTrafficRampCommandCenterReport(snapshot, dbAudit, orderRefresh) {
         "No failed refund, no stale processing refund, no scanner shard drift.",
         "No frontend wallet/address regression on Android/iOS/Windows."
       ],
-      promotion_endpoint: "/ops/traffic-ramp-command-center/summary?fresh=true"
+      promotion_endpoint: "/ops/canary-10-20-control/summary?fresh=true"
     },
     {
       id: "canary_100",
@@ -6862,7 +7912,7 @@ function buildTrafficRampCommandCenterReport(snapshot, dbAudit, orderRefresh) {
         "p95 backend health remains acceptable and no backlog spike.",
         "Wallet pool buffer remains positive."
       ],
-      promotion_endpoint: "/ops/traffic-ramp-command-center/summary?fresh=true"
+      promotion_endpoint: "/ops/canary-100-control/summary?fresh=true"
     },
     {
       id: "canary_1000",
@@ -6873,7 +7923,7 @@ function buildTrafficRampCommandCenterReport(snapshot, dbAudit, orderRefresh) {
         "Scanner remains 64/64 with duplicate_shards empty.",
         "Support/admin notifications stay manageable."
       ],
-      promotion_endpoint: "/ops/traffic-ramp-command-center/summary?fresh=true"
+      promotion_endpoint: "/ops/canary-1000-control/summary?fresh=true"
     },
     {
       id: "canary_10000",
@@ -6884,7 +7934,7 @@ function buildTrafficRampCommandCenterReport(snapshot, dbAudit, orderRefresh) {
         "Confirm Supabase/Render/Redis/remote signer stay under limits.",
         "Do not proceed if payment backlog grows unexpectedly."
       ],
-      promotion_endpoint: "/ops/traffic-ramp-command-center/summary?fresh=true"
+      promotion_endpoint: "/ops/canary-10000-control/summary?fresh=true"
     },
     {
       id: "canary_100000",
@@ -6895,7 +7945,7 @@ function buildTrafficRampCommandCenterReport(snapshot, dbAudit, orderRefresh) {
         "Keep wallet pool buffer over emergency reserve.",
         "Keep failed refunds at zero and stale refunds at zero."
       ],
-      promotion_endpoint: "/ops/traffic-ramp-command-center/summary?fresh=true"
+      promotion_endpoint: "/ops/canary-100000-control/summary?fresh=true"
     },
     {
       id: "marketing_spike_700k_5d",
@@ -6906,7 +7956,7 @@ function buildTrafficRampCommandCenterReport(snapshot, dbAudit, orderRefresh) {
         "Keep scanner workers at 64 or higher during spike.",
         "Keep this endpoint and final-gate ready throughout the campaign."
       ],
-      promotion_endpoint: "/ops/final-gate"
+      promotion_endpoint: "/ops/marketing-spike-700k-control/summary?fresh=true"
     }
   ];
   const currentStage = rampStages.find((stage) => ["current_required", "allowed"].includes(stage.status)) || rampStages[0];
@@ -6948,6 +7998,9 @@ function buildTrafficRampCommandCenterReport(snapshot, dbAudit, orderRefresh) {
       completed_refunds_24h: completedRefunds24h,
       failed_refunds_24h: failedRefunds24h,
       stale_processing_refunds_15m: staleProcessingRefunds15m,
+      selected_real_test_deposit_confirmed: realTestSignals.deposit_confirmed,
+      selected_real_test_refund_approved: realTestSignals.refund_approved,
+      failed_refunds_recovered_by_selected_test: realTestSignals.failed_refunds_recovered_for_selected_user,
       final_gate_status: snapshot?.gate?.status || "unknown",
       live_watch_status: liveWatch.status,
       post_canary_status: postCanaryGate.status,
@@ -7032,288 +8085,1351 @@ function buildTrafficRampCommandCenterReport(snapshot, dbAudit, orderRefresh) {
   };
 }
 
-function buildTrafficRampCommandCenterReport(snapshot, dbAudit, orderRefresh) {
+function buildCanary1ControlReport(snapshot, dbAudit, orderRefresh) {
+  const ramp = buildTrafficRampCommandCenterReport(snapshot, dbAudit, orderRefresh);
+  const postCanaryGate = buildPostRealTestCanaryGateReport(snapshot, dbAudit, orderRefresh);
+  const liveWatch = buildControlledRealTestLiveWatchReport(snapshot, dbAudit, orderRefresh);
+  const signals = getControlledRealTestSignals(orderRefresh, dbAudit);
+  const activeRollbackTriggerCount = Number(ramp.dependencies?.canary_rollout?.active_rollback_triggers || 0);
+  const blockers = [];
+  const warnings = [];
+  const addBlocker = (name, detail) => blockers.push({ name, ok: false, detail: String(detail) });
+  const addWarning = (name, detail) => warnings.push({ name, ok: false, detail: String(detail) });
+
+  if (ramp.stop_now === true) addBlocker("traffic_ramp_stop_now", `status=${ramp.status}`);
+  if (liveWatch.stop_now === true) addBlocker("live_watch_stop_now", `status=${liveWatch.status}`);
+  if (ramp.ready_for_canary_1 !== true) addBlocker("canary_1_not_allowed_by_ramp", `status=${ramp.status}, real_test_passed=${ramp.real_test_passed}`);
+  if (postCanaryGate.ready_for_canary_after_real_test !== true) addBlocker("post_real_test_canary_gate_not_ready", `status=${postCanaryGate.status}`);
+  if (signals.real_test_passed !== true) addBlocker("selected_real_test_not_passed", `deposit=${signals.deposit_confirmed}, refund=${signals.refund_passed}`);
+  if (activeRollbackTriggerCount > 0) addBlocker("active_rollback_triggers_present", `count=${activeRollbackTriggerCount}`);
+  if (signals.failed_refunds_recovered_for_selected_user === true) {
+    addWarning("historical_failed_refund_recovered", "A previous failed refund exists, but the selected controlled test has an approved refund after it.");
+  }
+  if (Number(ramp.observed?.pending_refunds || 0) > 0) {
+    addWarning("pending_refunds_watch", `pending_refunds=${ramp.observed.pending_refunds}`);
+  }
+
+  const canary1Allowed = blockers.length === 0;
+  return {
+    status: canary1Allowed ? (warnings.length ? "watch_canary_1_allowed" : "canary_1_allowed") : "blocked",
+    ok: canary1Allowed,
+    checked_at: new Date().toISOString(),
+    version: BACKEND_VERSION,
+    no_side_effects: true,
+    real_money_sent_by_this_endpoint: false,
+    canary_1_allowed: canary1Allowed,
+    next_allowed_stage: canary1Allowed ? "canary_1" : "none",
+    selected_controlled_test: {
+      telegram_id: signals.telegram_id || orderRefresh?.telegram_id || null,
+      deposit_confirmed: signals.deposit_confirmed,
+      confirmed_order_id: signals.selected_confirmed_order_id,
+      refund_approved: signals.refund_approved,
+      refund_remote_confirmed: signals.refund_remote_confirmed,
+      refund_latest_status: signals.refund_latest_status,
+      real_test_passed: signals.real_test_passed
+    },
+    observed: {
+      scanner_workers_alive: ramp.observed?.scanner_workers_alive ?? null,
+      active_shards: ramp.observed?.active_shards ?? null,
+      duplicate_shards: ramp.observed?.duplicate_shards || [],
+      available_wallets: ramp.observed?.available_wallets ?? null,
+      remote_signer_wallet_files: ramp.observed?.remote_signer_wallet_files ?? null,
+      pending_orders: ramp.observed?.pending_orders ?? null,
+      pending_refunds: ramp.observed?.pending_refunds ?? null,
+      processing_refunds: ramp.observed?.processing_refunds ?? null,
+      completed_refunds_24h: ramp.observed?.completed_refunds_24h ?? null,
+      failed_refunds_24h: ramp.observed?.failed_refunds_24h ?? null,
+      stale_processing_refunds_15m: ramp.observed?.stale_processing_refunds_15m ?? null,
+      failed_refunds_recovered_by_selected_test: signals.failed_refunds_recovered_for_selected_user,
+      final_gate_status: ramp.observed?.final_gate_status || "unknown",
+      traffic_ramp_status: ramp.status,
+      live_watch_status: liveWatch.status,
+      post_canary_status: postCanaryGate.status
+    },
+    canary_1_rules: [
+      "Open canary_1 only; do not jump to 10-20 users from this endpoint.",
+      "After canary_1 user finishes deposit/refund, re-check /ops/canary-10-20-control/summary.",
+      "Stop immediately if stop_now becomes true, failed refunds increase after canary_1 starts, or scanner/shard coverage drops.",
+      "Keep real payment/refund monitoring open during canary_1."
+    ],
+    verify_after_enabling_canary_1: [
+      "/ops/canary-1-control/summary?fresh=true",
+      "/ops/canary-10-20-control/summary?fresh=true",
+      "/ops/traffic-ramp-command-center/summary?fresh=true",
+      "/ops/final-gate"
+    ],
+    blockers,
+    warnings,
+    next_step: canary1Allowed
+      ? "Canary_1 is allowed. Open only one fresh user, complete deposit/refund, then re-check before 10-20 users."
+      : "Do not start canary_1. Fix blockers and re-check this endpoint."
+  };
+}
+
+async function buildCanary10_20ControlReport(snapshot, dbAudit, orderRefresh) {
+  const canary1 = buildCanary1ControlReport(snapshot, dbAudit, orderRefresh);
+  const ramp = buildTrafficRampCommandCenterReport(snapshot, dbAudit, orderRefresh);
   const liveWatch = buildControlledRealTestLiveWatchReport(snapshot, dbAudit, orderRefresh);
   const postCanaryGate = buildPostRealTestCanaryGateReport(snapshot, dbAudit, orderRefresh);
-  const canary = buildCanaryRolloutReport(snapshot, dbAudit);
-  const marketingGate = buildMarketingSpikeGate(snapshot);
-  const certification = buildProductionLaunchCertificationReport(snapshot, dbAudit);
   const refundSafety = buildDepositRefundPayoutSafetyReport(snapshot, dbAudit);
-  const incident = buildIncidentStatusReport(snapshot);
-  const frontendContract = buildFrontendDeploymentContract();
-  const security = buildSecurityStatus();
+  const progression = await buildCanaryProgressionSignal(canary1.selected_controlled_test?.telegram_id, orderRefresh);
   const counts = dbAudit?.counts || {};
-  const scannerWorkersAlive = Number(liveWatch.observed.scanner_workers_alive || 0);
-  const activeShards = Number(liveWatch.observed.active_shards || 0);
-  const duplicateShards = Array.isArray(liveWatch.observed.duplicate_shards) ? liveWatch.observed.duplicate_shards : [];
-  const availableWallets = Number(liveWatch.observed.available_wallets || 0);
-  const walletBuffer = Number(liveWatch.observed.wallet_buffer || (availableWallets - CAPACITY_TARGET_USERS));
-  const remoteSignerWalletFiles = Number(liveWatch.observed.remote_signer_wallet_files || 0);
-  const pendingOrders = Number(liveWatch.observed.pending_orders || 0);
-  const pendingRefunds = Number(liveWatch.observed.pending_refunds || 0);
-  const processingRefunds = Number(liveWatch.observed.processing_refunds || 0);
-  const confirmedOrders24h = Number(liveWatch.observed.confirmed_orders_24h || 0);
-  const paymentTransactions24h = Number(liveWatch.observed.payment_transactions_24h || 0);
-  const completedRefunds24h = Number(liveWatch.observed.completed_refunds_24h || 0);
-  const failedRefunds24h = Number(liveWatch.observed.failed_refunds_24h || 0);
-  const staleProcessingRefunds15m = Number(liveWatch.observed.stale_processing_refunds_15m || 0);
-  const activeRefunds = pendingRefunds + processingRefunds;
-  const freshPendingWithoutWallet = Number(liveWatch.observed.fresh_pending_without_wallet || counts.fresh_pending_orders_without_wallet?.count || 0);
-  const realTestPassed = liveWatch.real_test_passed === true && postCanaryGate.real_test_passed === true;
-  const canary1Allowed = realTestPassed && liveWatch.ready_for_canary_1 === true && postCanaryGate.ready_for_canary_after_real_test === true;
+  const scannerWorkersAlive = Number(ramp.observed?.scanner_workers_alive || 0);
+  const activeShards = Number(ramp.observed?.active_shards || 0);
+  const duplicateShards = Array.isArray(ramp.observed?.duplicate_shards) ? ramp.observed.duplicate_shards : [];
+  const availableWallets = Number(ramp.observed?.available_wallets || 0);
+  const remoteSignerWalletFiles = Number(ramp.observed?.remote_signer_wallet_files || 0);
+  const pendingOrders = Number(ramp.observed?.pending_orders || 0);
+  const failedRefunds24h = Number(counts.deposit_refund_withdraws_failed_24h?.count || ramp.observed?.failed_refunds_24h || 0);
+  const staleProcessingRefunds15m = Number(counts.deposit_refund_withdraws_processing_stale_15m?.count || ramp.observed?.stale_processing_refunds_15m || 0);
   const checks = [];
   const add = (name, ok, detail, severity = "blocker") => checks.push({ name, ok: Boolean(ok), detail: String(detail), severity });
 
-  add("live_watch_not_stopped", liveWatch.stop_now !== true, `status=${liveWatch.status}, stop_now=${liveWatch.stop_now}`);
-  add("final_gate_ready", snapshot?.gate?.status === "ready", `status=${snapshot?.gate?.status || "unknown"}`);
-  add("non_real_test_work_complete", postCanaryGate.infra_ready_for_post_real_test_canary === true, `post_canary_status=${postCanaryGate.status}`);
-  add("certification_technical_ready", certification.technical_ready_for_1_5m === true, `status=${certification.status}, blockers=${certification.blockers.length}`);
-  add("marketing_spike_gate_ready", marketingGate.ok === true, `status=${marketingGate.status}, blockers=${marketingGate.blockers.length}`);
-  add("scanner_workers_64_alive", scannerWorkersAlive >= MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS, `alive=${scannerWorkersAlive}, required=${MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS}`);
-  add("scanner_active_shards_64", activeShards >= MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS, `active=${activeShards}, required=${MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS}`);
-  add("scanner_duplicate_shards_zero", duplicateShards.length === 0, `duplicates=${duplicateShards.join(",") || "0"}`);
-  add("redis_ready", snapshot?.redis?.ok === true && snapshot?.redis_deep?.ok === true, `redis=${Boolean(snapshot?.redis?.ok)}, deep=${Boolean(snapshot?.redis_deep?.ok)}`);
-  add("ton_signer_ready", snapshot?.ton_signer?.ok === true, `ok=${Boolean(snapshot?.ton_signer?.ok)}`);
-  add("remote_signer_wallet_files_cover_1_5m", remoteSignerWalletFiles >= CAPACITY_TARGET_USERS, `wallet_files=${remoteSignerWalletFiles}, target=${CAPACITY_TARGET_USERS}`);
-  add("wallet_capacity_1_5m_ready", availableWallets >= CAPACITY_TARGET_USERS, `available=${availableWallets}, target=${CAPACITY_TARGET_USERS}`);
-  add("wallet_buffer_positive", walletBuffer >= 0, `buffer=${walletBuffer}`);
-  add("fresh_pending_without_wallet_zero", freshPendingWithoutWallet === 0, `fresh_pending_without_wallet=${freshPendingWithoutWallet}`);
-  add("payment_backlog_under_spike_limit", pendingOrders <= MARKETING_SPIKE_MAX_PENDING_BACKLOG, `pending=${pendingOrders}, max=${MARKETING_SPIKE_MAX_PENDING_BACKLOG}`);
-  add("refund_queue_not_piling_up", activeRefunds <= 25, `pending=${pendingRefunds}, processing=${processingRefunds}`, "warning");
-  add("failed_refunds_zero_24h", failedRefunds24h === 0, `failed_refunds_24h=${failedRefunds24h}`);
-  add("stale_processing_refunds_zero", staleProcessingRefunds15m === 0, `stale_processing_refunds_15m=${staleProcessingRefunds15m}`);
-  add("incident_clear_or_watch", incident.status === "clear" || incident.status === "watch", `status=${incident.status}`);
-  add("frontend_contract_ready", frontendContract.status === "ready", `status=${frontendContract.status}`);
-  add("security_ok", security.status === "ok", `status=${security.status}`);
-  add("canary_rollback_triggers_zero", canary.active_rollback_triggers.length === 0, `active_rollback_triggers=${canary.active_rollback_triggers.length}`);
-  add("controlled_real_test_passed", realTestPassed, `phase_1=${liveWatch.phase_1_deposit_confirmed}, phase_2=${liveWatch.phase_2_refund_completed}`, "real_test_hold");
+  add("canary_1_allowed_by_control_gate", canary1.canary_1_allowed === true, `status=${canary1.status}`, "blocker");
+  add("traffic_ramp_not_stopped", ramp.stop_now !== true, `status=${ramp.status}, stop_now=${ramp.stop_now}`, "blocker");
+  add("live_watch_not_stopped", liveWatch.stop_now !== true, `status=${liveWatch.status}, stop_now=${liveWatch.stop_now}`, "blocker");
+  add("post_real_test_gate_ready", postCanaryGate.ready_for_canary_after_real_test === true, `status=${postCanaryGate.status}`, "blocker");
+  add("refund_safety_ready", refundSafety.ok === true, `status=${refundSafety.status}, blockers=${refundSafety.blockers.length}`, "blocker");
+  add("scanner_workers_64_alive", scannerWorkersAlive >= MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS, `alive=${scannerWorkersAlive}, required=${MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS}`, "blocker");
+  add("scanner_active_shards_64", activeShards >= MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS, `active=${activeShards}, required=${MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS}`, "blocker");
+  add("scanner_duplicate_shards_zero", duplicateShards.length === 0, `duplicates=${duplicateShards.join(",") || "0"}`, "blocker");
+  add("wallet_capacity_1_5m_ready", availableWallets >= CAPACITY_TARGET_USERS, `available=${availableWallets}, target=${CAPACITY_TARGET_USERS}`, "blocker");
+  add("remote_signer_wallet_files_cover_1_5m", remoteSignerWalletFiles >= CAPACITY_TARGET_USERS, `wallet_files=${remoteSignerWalletFiles}, target=${CAPACITY_TARGET_USERS}`, "blocker");
+  add("fresh_canary_1_success_user_seen", progression.matched_success_users >= CANARY_1_REQUIRED_FRESH_SUCCESS_USERS, `matched_success_users=${progression.matched_success_users}, required=${CANARY_1_REQUIRED_FRESH_SUCCESS_USERS}`, "canary_1_hold");
+  add("fresh_canary_refund_remote_confirmed", progression.fresh_remote_confirmed_refund_users >= CANARY_1_REQUIRED_FRESH_SUCCESS_USERS, `remote_confirmed_refund_users=${progression.fresh_remote_confirmed_refund_users}`, "canary_1_hold");
+  add("canary_retry_pending_zero", progression.retry_pending_refunds === 0, `retry_pending=${progression.retry_pending_refunds}`, "blocker");
+  add("canary_failed_refunds_zero", progression.failed_refunds === 0 && failedRefunds24h === 0, `fresh_failed=${progression.failed_refunds}, failed_24h=${failedRefunds24h}`, "blocker");
+  add("canary_stale_processing_zero", progression.stale_processing_refunds === 0 && staleProcessingRefunds15m === 0, `fresh_stale=${progression.stale_processing_refunds}, stale_15m=${staleProcessingRefunds15m}`, "blocker");
+  add("pending_orders_under_spike_limit", pendingOrders <= MARKETING_SPIKE_MAX_PENDING_BACKLOG, `pending=${pendingOrders}, max=${MARKETING_SPIKE_MAX_PENDING_BACKLOG}`, "warning");
+  add("canary_pending_refunds_small", progression.pending_refunds <= CANARY_10_20_TARGET_MAX_USERS, `pending_refunds=${progression.pending_refunds}, max=${CANARY_10_20_TARGET_MAX_USERS}`, "warning");
 
   const blockers = checks.filter((item) => !item.ok && item.severity === "blocker");
-  const realTestHolds = checks.filter((item) => !item.ok && item.severity === "real_test_hold");
+  const canary1Holds = checks.filter((item) => !item.ok && item.severity === "canary_1_hold");
   const warnings = [
     ...checks.filter((item) => !item.ok && item.severity === "warning"),
-    ...liveWatch.warnings.map((item) => ({ ...item, source: "controlled_real_test_live_watch" })),
-    ...postCanaryGate.warnings.map((item) => ({ ...item, source: "post_real_test_canary_gate" })),
-    ...canary.warnings.map((item) => ({ ...item, source: "canary_rollout" })),
+    ...canary1.warnings.map((item) => ({ ...item, source: "canary_1_control" })),
+    ...ramp.warnings.map((item) => ({ ...item, source: "traffic_ramp" })),
     ...refundSafety.warnings.map((item) => ({ ...item, source: "deposit_refund_safety" }))
   ];
   const uniqueWarnings = Array.from(new Map(warnings.map((item) => [`${item.source || "local"}:${item.name}:${item.detail}`, item])).values());
-  const stopNow = blockers.length > 0 || liveWatch.stop_now === true || canary.active_rollback_triggers.length > 0;
-  const status = stopNow
-    ? "blocked_stop_now"
-    : (canary1Allowed
-      ? "ready_for_canary_1"
-      : (realTestHolds.length ? "waiting_for_controlled_real_test" : "watch_ready"));
-  const rampStages = [
-    {
-      id: "controlled_real_test",
-      users: 1,
-      status: realTestPassed ? "passed" : (stopNow ? "blocked" : "current_required"),
-      required_before_next: [
-        "One real 6.99 TONCOIN activation deposit is confirmed.",
-        "One activation deposit refund is completed.",
-        "failed_refunds_24h stays 0 and stale_processing_refunds_15m stays 0."
-      ],
-      promotion_endpoint: "/ops/controlled-real-test-live-watch/summary?fresh=true"
-    },
-    {
-      id: "canary_1",
-      users: 1,
-      status: canary1Allowed ? "allowed" : (stopNow ? "blocked" : "locked_until_real_test_passes"),
-      required_before_next: [
-        "Run one fresh user end-to-end after real test passes.",
-        "Keep scanner 64/64, duplicate shards zero, failed refunds zero.",
-        "Re-check this endpoint before opening canary_10_20."
-      ],
-      promotion_endpoint: "/ops/post-real-test-canary-gate/summary?fresh=true"
-    },
-    {
-      id: "canary_10_20",
-      users: "10-20",
-      status: canary1Allowed ? "locked_until_canary_1_clean" : "locked",
-      required_before_next: [
-        "10-20 fresh users complete deposit/refund checks cleanly.",
-        "No failed refund, no stale processing refund, no scanner shard drift.",
-        "No frontend wallet/address regression on Android/iOS/Windows."
-      ],
-      promotion_endpoint: "/ops/traffic-ramp-command-center/summary?fresh=true"
-    },
-    {
-      id: "canary_100",
-      users: 100,
-      status: "locked_until_10_20_clean",
-      required_before_next: [
-        "100-user canary stays clean under live monitoring.",
-        "p95 backend health remains acceptable and no backlog spike.",
-        "Wallet pool buffer remains positive."
-      ],
-      promotion_endpoint: "/ops/traffic-ramp-command-center/summary?fresh=true"
-    },
-    {
-      id: "canary_1000",
-      users: 1000,
-      status: "locked_until_100_clean",
-      required_before_next: [
-        "1000-user canary finishes without failed refunds.",
-        "Scanner remains 64/64 with duplicate_shards empty.",
-        "Support/admin notifications stay manageable."
-      ],
-      promotion_endpoint: "/ops/traffic-ramp-command-center/summary?fresh=true"
-    },
-    {
-      id: "canary_10000",
-      users: 10000,
-      status: "locked_until_1000_clean",
-      required_before_next: [
-        "Run sustained app action and payment monitoring.",
-        "Confirm Supabase/Render/Redis/remote signer stay under limits.",
-        "Do not proceed if payment backlog grows unexpectedly."
-      ],
-      promotion_endpoint: "/ops/traffic-ramp-command-center/summary?fresh=true"
-    },
-    {
-      id: "canary_100000",
-      users: 100000,
-      status: "locked_until_10000_clean",
-      required_before_next: [
-        "Run 100k staged traffic window.",
-        "Keep wallet pool buffer over emergency reserve.",
-        "Keep failed refunds at zero and stale refunds at zero."
-      ],
-      promotion_endpoint: "/ops/traffic-ramp-command-center/summary?fresh=true"
-    },
-    {
-      id: "marketing_spike_700k_5d",
-      users: MARKETING_SPIKE_TARGET_USERS_5D,
-      status: "locked_until_canary_ladder_clean",
-      required_before_next: [
-        "Only open after the canary ladder is clean.",
-        "Keep scanner workers at 64 or higher during spike.",
-        "Keep this endpoint and final-gate ready throughout the campaign."
-      ],
-      promotion_endpoint: "/ops/final-gate"
-    }
-  ];
-  const currentStage = rampStages.find((stage) => ["current_required", "allowed"].includes(stage.status)) || rampStages[0];
-  const operatorNextAction = stopNow
-    ? "STOP: do not run real test, canary, or public traffic until blockers/rollback triggers are fixed."
-    : (canary1Allowed
-      ? "Controlled real test passed. Open canary_1 only, then re-check this endpoint before any wider rollout."
-      : liveWatch.operator_next_action);
+  const canary10_20Allowed = blockers.length === 0 && canary1Holds.length === 0;
+  const status = blockers.length
+    ? "blocked"
+    : (canary10_20Allowed
+      ? (uniqueWarnings.length ? "watch_canary_10_20_allowed" : "canary_10_20_allowed")
+      : "waiting_for_canary_1_clean");
 
   return {
     status,
-    ok: !stopNow,
+    ok: blockers.length === 0,
     checked_at: new Date().toISOString(),
     version: BACKEND_VERSION,
-    target_users: CAPACITY_TARGET_USERS,
-    marketing_spike_target_users_5d: MARKETING_SPIKE_TARGET_USERS_5D,
     no_side_effects: true,
     real_money_sent_by_this_endpoint: false,
-    stop_now: stopNow,
-    real_test_passed: realTestPassed,
-    ready_for_canary_1: canary1Allowed,
-    ready_for_700k_deposit_users_in_5_days_after_real_test: canary1Allowed && postCanaryGate.ready_for_700k_deposit_users_in_5_days_after_real_test === true,
-    current_stage: currentStage,
-    next_allowed_stage: canary1Allowed ? "canary_1" : "controlled_real_test",
+    canary_10_20_allowed: canary10_20Allowed,
+    canary_1_clean: canary1Holds.length === 0,
+    next_allowed_stage: canary10_20Allowed ? "canary_10_20" : "canary_1",
+    target_batch: {
+      min_users: CANARY_10_20_TARGET_MIN_USERS,
+      max_users: CANARY_10_20_TARGET_MAX_USERS,
+      one_stage_at_a_time: true,
+      requires_canary_1_clean_first: true
+    },
     observed: {
       scanner_workers_alive: scannerWorkersAlive,
       active_shards: activeShards,
       duplicate_shards: duplicateShards,
       available_wallets: availableWallets,
-      wallet_buffer: walletBuffer,
       remote_signer_wallet_files: remoteSignerWalletFiles,
       pending_orders: pendingOrders,
-      pending_refunds: pendingRefunds,
-      processing_refunds: processingRefunds,
-      active_refunds: activeRefunds,
-      fresh_pending_without_wallet: freshPendingWithoutWallet,
-      confirmed_orders_24h: confirmedOrders24h,
-      payment_transactions_24h: paymentTransactions24h,
-      completed_refunds_24h: completedRefunds24h,
       failed_refunds_24h: failedRefunds24h,
       stale_processing_refunds_15m: staleProcessingRefunds15m,
-      final_gate_status: snapshot?.gate?.status || "unknown",
+      canary_progression: progression,
+      traffic_ramp_status: ramp.status,
+      canary_1_status: canary1.status,
       live_watch_status: liveWatch.status,
       post_canary_status: postCanaryGate.status,
-      canary_rollout_status: canary.status,
-      marketing_gate_status: marketingGate.status,
-      incident_status: incident.status,
-      security_status: security.status,
-      frontend_contract_status: frontendContract.status
+      refund_safety_status: refundSafety.status
     },
-    ramp_stages: rampStages,
-    hard_stop_conditions: [
-      "stop_now is true",
-      "final-gate is not ready",
-      "scanner_workers_alive drops below 64",
-      "active_shards drops below 64",
-      "duplicate_shards is not empty",
-      "available_wallets drops below 1,500,000",
-      "remote_signer_wallet_files drops below 1,500,000",
-      "fresh_pending_without_wallet becomes greater than 0",
-      "failed_refunds_24h becomes greater than 0 during controlled test/canary",
-      "stale_processing_refunds_15m becomes greater than 0",
-      "canary active rollback trigger appears",
-      "incident status becomes blocked/critical",
-      "security status is not ok"
+    promotion_rules: [
+      "Do not open 10-20 users until one fresh canary_1 user completes deposit and activation refund after the controlled real test.",
+      "10-20 canary opens only when retry_pending_refunds=0, failed_refunds=0, stale_processing_refunds=0.",
+      "Keep scanner 64/64 and duplicate_shards empty during the whole 10-20 canary.",
+      "If 429/rate-limit creates retry pending refunds, pause expansion and wait for retry/reconciliation before adding users."
     ],
-    rollout_policy: {
-      one_stage_at_a_time: true,
-      real_test_required_before_canary: true,
-      canary_1_required_before_10_20: true,
-      public_launch_requires_full_canary_ladder: true,
-      no_direct_jump_to_marketing_spike: true,
-      endpoint_is_read_only: true
-    },
-    dependencies: {
-      live_watch: {
-        status: liveWatch.status,
-        stop_now: liveWatch.stop_now,
-        safe_to_send_now: liveWatch.safe_to_send_now,
-        ready_for_first_deposit_after_operator_action: liveWatch.ready_for_first_deposit_after_operator_action,
-        phase_1_deposit_confirmed: liveWatch.phase_1_deposit_confirmed,
-        phase_2_refund_completed: liveWatch.phase_2_refund_completed,
-        blockers_count: liveWatch.blockers.length,
-        operator_actions_count: liveWatch.operator_actions.length,
-        warnings_count: liveWatch.warnings.length
-      },
-      post_real_test_canary_gate: {
-        status: postCanaryGate.status,
-        infra_ready_for_post_real_test_canary: postCanaryGate.infra_ready_for_post_real_test_canary,
-        ready_for_canary_after_real_test: postCanaryGate.ready_for_canary_after_real_test,
-        blockers_count: postCanaryGate.blockers.length,
-        real_test_holds_count: postCanaryGate.real_test_holds.length,
-        warnings_count: postCanaryGate.warnings.length
-      },
-      canary_rollout: {
-        status: canary.status,
-        next_recommended_stage: canary.next_recommended_stage,
-        active_rollback_triggers: canary.active_rollback_triggers.length,
-        blockers_count: canary.blockers.length,
-        warnings_count: canary.warnings.length
-      },
-      marketing_spike_gate: {
-        status: marketingGate.status,
-        ready_for_700k_deposit_users_in_5_days: marketingGate.ready_for_700k_deposit_users_in_5_days,
-        blockers_count: marketingGate.blockers.length,
-        warnings_count: marketingGate.warning_items.length
-      },
-      production_launch_certification: {
-        status: certification.status,
-        technical_ready_for_1_5m: certification.technical_ready_for_1_5m,
-        real_test_passed: certification.real_test_passed,
-        blockers_count: certification.blockers.length,
-        manual_holds_count: certification.manual_holds.length,
-        warnings_count: certification.warnings.length
-      }
-    },
+    rollback_triggers: [
+      "canary_retry_pending_zero becomes false",
+      "canary_failed_refunds_zero becomes false",
+      "canary_stale_processing_zero becomes false",
+      "scanner_workers_alive < 64",
+      "active_shards < 64",
+      "duplicate_shards is not empty",
+      "remote signer not ready",
+      "wallet capacity below 1.5M"
+    ],
     checks,
     blockers,
-    real_test_holds: realTestHolds,
+    canary_1_holds: canary1Holds,
     warnings: uniqueWarnings,
-    operator_next_action: operatorNextAction,
-    next_step: operatorNextAction
+    next_step: blockers.length
+      ? "Do not expand. Fix blockers and re-check this endpoint."
+      : (canary10_20Allowed
+        ? "10-20 canary is allowed. Open 10-20 fresh users only, then re-check before 100 users."
+        : "Run one fresh canary_1 user end-to-end, then re-check this endpoint.")
+  };
+}
+
+async function buildCanaryStageExpansionReport(snapshot, dbAudit, orderRefresh, options) {
+  const stageId = options.stage_id;
+  const previousStageId = options.previous_stage_id;
+  const targetUsers = options.target_users;
+  const requiredCleanUsers = Math.max(1, Number(options.required_clean_users || 1));
+  const nextStageId = options.next_stage_id;
+  const base = await buildCanary10_20ControlReport(snapshot, dbAudit, orderRefresh);
+  const marketingGate = options.require_marketing_spike_gate ? buildMarketingSpikeGate(snapshot) : null;
+  const progression = base.observed?.canary_progression || await buildCanaryProgressionSignal(DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID, orderRefresh);
+  const scannerWorkersAlive = Number(base.observed?.scanner_workers_alive || 0);
+  const activeShards = Number(base.observed?.active_shards || 0);
+  const duplicateShards = Array.isArray(base.observed?.duplicate_shards) ? base.observed.duplicate_shards : [];
+  const availableWallets = Number(base.observed?.available_wallets || 0);
+  const remoteSignerWalletFiles = Number(base.observed?.remote_signer_wallet_files || 0);
+  const retryPendingRefunds = Number(progression.retry_pending_refunds || 0);
+  const failedRefunds = Number(progression.failed_refunds || 0);
+  const staleProcessingRefunds = Number(progression.stale_processing_refunds || 0);
+  const matchedSuccessUsers = Number(progression.matched_success_users || 0);
+  const remoteConfirmedRefundUsers = Number(progression.fresh_remote_confirmed_refund_users || 0);
+  const pendingRefunds = Number(progression.pending_refunds || 0);
+  const processingRefunds = Number(progression.processing_refunds || 0);
+  const checks = [];
+  const add = (name, ok, detail, severity = "blocker") => checks.push({ name, ok: Boolean(ok), detail: String(detail), severity });
+
+  add("previous_canary_gate_has_no_blockers", base.blockers.length === 0, `previous=${previousStageId}, blockers=${base.blockers.length}`, "blocker");
+  add("traffic_ramp_ready_for_canary_ladder", ["ready_for_canary_1", "watch_ready", "ready"].includes(String(base.observed?.traffic_ramp_status || "")), `traffic_ramp_status=${base.observed?.traffic_ramp_status || "unknown"}`, "blocker");
+  add("live_watch_real_test_passed", String(base.observed?.live_watch_status || "").includes("real_test_passed"), `live_watch_status=${base.observed?.live_watch_status || "unknown"}`, "blocker");
+  add("post_canary_gate_ready", ["ready_for_canary", "watch_ready_for_canary"].includes(String(base.observed?.post_canary_status || "")), `post_canary_status=${base.observed?.post_canary_status || "unknown"}`, "blocker");
+  add("refund_safety_ready", ["ready", "watch"].includes(String(base.observed?.refund_safety_status || "")), `refund_safety_status=${base.observed?.refund_safety_status || "unknown"}`, "blocker");
+  add("scanner_workers_64_alive", scannerWorkersAlive >= MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS, `alive=${scannerWorkersAlive}, required=${MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS}`, "blocker");
+  add("scanner_active_shards_64", activeShards >= MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS, `active=${activeShards}, required=${MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS}`, "blocker");
+  add("scanner_duplicate_shards_zero", duplicateShards.length === 0, `duplicates=${duplicateShards.join(",") || "0"}`, "blocker");
+  add("wallet_capacity_1_5m_ready", availableWallets >= CAPACITY_TARGET_USERS, `available=${availableWallets}, target=${CAPACITY_TARGET_USERS}`, "blocker");
+  add("remote_signer_wallet_files_cover_1_5m", remoteSignerWalletFiles >= CAPACITY_TARGET_USERS, `wallet_files=${remoteSignerWalletFiles}, target=${CAPACITY_TARGET_USERS}`, "blocker");
+  add("marketing_spike_gate_ready", !marketingGate || marketingGate.ok === true, `status=${marketingGate?.status || "not_required"}, blockers=${marketingGate?.blockers?.length || 0}`, "blocker");
+  add(`${previousStageId}_matched_success_users_ready`, matchedSuccessUsers >= requiredCleanUsers, `matched_success_users=${matchedSuccessUsers}, required=${requiredCleanUsers}`, "stage_hold");
+  add(`${previousStageId}_remote_confirmed_refunds_ready`, remoteConfirmedRefundUsers >= requiredCleanUsers, `remote_confirmed_refund_users=${remoteConfirmedRefundUsers}, required=${requiredCleanUsers}`, "stage_hold");
+  add("canary_retry_pending_zero", retryPendingRefunds === 0, `retry_pending=${retryPendingRefunds}`, "blocker");
+  add("canary_failed_refunds_zero", failedRefunds === 0, `failed=${failedRefunds}`, "blocker");
+  add("canary_stale_processing_zero", staleProcessingRefunds === 0, `stale_processing=${staleProcessingRefunds}`, "blocker");
+  add("canary_pending_refunds_within_stage", pendingRefunds <= targetUsers, `pending_refunds=${pendingRefunds}, target_users=${targetUsers}`, "warning");
+  add("canary_processing_refunds_within_stage", processingRefunds <= targetUsers, `processing_refunds=${processingRefunds}, target_users=${targetUsers}`, "warning");
+
+  const blockers = [
+    ...checks.filter((item) => !item.ok && item.severity === "blocker"),
+    ...base.blockers.map((item) => ({ ...item, source: "canary_10_20_control" })),
+    ...(marketingGate ? marketingGate.blockers.map((item) => ({ ...item, source: "marketing_spike_gate" })) : [])
+  ];
+  const stageHolds = checks.filter((item) => !item.ok && item.severity === "stage_hold");
+  const warnings = [
+    ...checks.filter((item) => !item.ok && item.severity === "warning"),
+    ...base.warnings.map((item) => ({ ...item, source: "canary_10_20_control" })),
+    ...(marketingGate ? marketingGate.warning_items.map((item) => ({ ...item, source: "marketing_spike_gate" })) : [])
+  ];
+  const uniqueWarnings = Array.from(new Map(warnings.map((item) => [`${item.source || "local"}:${item.name}:${item.detail}`, item])).values());
+  const stageAllowed = blockers.length === 0 && stageHolds.length === 0;
+  const status = blockers.length
+    ? "blocked"
+    : (stageAllowed
+      ? (uniqueWarnings.length ? `watch_${stageId}_allowed` : `${stageId}_allowed`)
+      : `waiting_for_${previousStageId}_clean`);
+
+  return {
+    status,
+    ok: blockers.length === 0,
+    checked_at: new Date().toISOString(),
+    version: BACKEND_VERSION,
+    no_side_effects: true,
+    real_money_sent_by_this_endpoint: false,
+    target_stage: stageId,
+    previous_stage: previousStageId,
+    target_users: targetUsers,
+    required_clean_users: requiredCleanUsers,
+    stage_allowed: stageAllowed,
+    next_allowed_stage: stageAllowed ? stageId : previousStageId,
+    next_stage_after_this: nextStageId,
+    observed: {
+      scanner_workers_alive: scannerWorkersAlive,
+      active_shards: activeShards,
+      duplicate_shards: duplicateShards,
+      available_wallets: availableWallets,
+      remote_signer_wallet_files: remoteSignerWalletFiles,
+      pending_orders: Number(base.observed?.pending_orders || 0),
+      failed_refunds_24h: Number(base.observed?.failed_refunds_24h || 0),
+      stale_processing_refunds_15m: Number(base.observed?.stale_processing_refunds_15m || 0),
+      canary_progression: progression,
+      traffic_ramp_status: base.observed?.traffic_ramp_status || "unknown",
+      canary_10_20_status: base.status,
+      live_watch_status: base.observed?.live_watch_status || "unknown",
+      post_canary_status: base.observed?.post_canary_status || "unknown",
+      refund_safety_status: base.observed?.refund_safety_status || "unknown",
+      marketing_spike_status: marketingGate?.status || "not_required",
+      marketing_spike_ready_for_700k_5d: marketingGate?.ready_for_700k_deposit_users_in_5_days ?? null
+    },
+    promotion_rules: [
+      `${stageId} opens only after ${requiredCleanUsers} fresh users complete both deposit confirmation and activation refund after the controlled real test.`,
+      "Any retry-pending, failed, or stale processing activation refund blocks expansion.",
+      "Keep scanner 64/64, duplicate_shards empty, wallet pool >= 1.5M, and signer wallet files >= 1.5M.",
+      "Do not skip canary stages; only one stage can be opened at a time."
+    ],
+    rollback_triggers: [
+      "retry_pending_refunds > 0",
+      "failed_refunds > 0",
+      "stale_processing_refunds > 0",
+      "scanner_workers_alive < 64",
+      "active_shards < 64",
+      "duplicate_shards is not empty",
+      "remote_signer_wallet_files < 1,500,000",
+      "available_wallets < 1,500,000"
+    ],
+    checks,
+    blockers,
+    stage_holds: stageHolds,
+    warnings: uniqueWarnings,
+    next_step: blockers.length
+      ? "Do not expand. Fix blockers and re-check this endpoint."
+      : (stageAllowed
+        ? `${stageId} is allowed. Open only this stage, then re-check before ${nextStageId}.`
+        : `Finish ${requiredCleanUsers} clean fresh users in ${previousStageId}, then re-check this endpoint.`)
+  };
+}
+
+async function buildCanary100ControlReport(snapshot, dbAudit, orderRefresh) {
+  return buildCanaryStageExpansionReport(snapshot, dbAudit, orderRefresh, {
+    stage_id: "canary_100",
+    previous_stage_id: "canary_10_20",
+    target_users: 100,
+    required_clean_users: CANARY_100_REQUIRED_CLEAN_USERS,
+    next_stage_id: "canary_1000"
+  });
+}
+
+async function buildCanary1000ControlReport(snapshot, dbAudit, orderRefresh) {
+  return buildCanaryStageExpansionReport(snapshot, dbAudit, orderRefresh, {
+    stage_id: "canary_1000",
+    previous_stage_id: "canary_100",
+    target_users: 1000,
+    required_clean_users: CANARY_1000_REQUIRED_CLEAN_USERS,
+    next_stage_id: "canary_10000"
+  });
+}
+
+async function buildCanary10000ControlReport(snapshot, dbAudit, orderRefresh) {
+  return buildCanaryStageExpansionReport(snapshot, dbAudit, orderRefresh, {
+    stage_id: "canary_10000",
+    previous_stage_id: "canary_1000",
+    target_users: 10000,
+    required_clean_users: CANARY_10000_REQUIRED_CLEAN_USERS,
+    next_stage_id: "canary_100000"
+  });
+}
+
+async function buildCanary100000ControlReport(snapshot, dbAudit, orderRefresh) {
+  return buildCanaryStageExpansionReport(snapshot, dbAudit, orderRefresh, {
+    stage_id: "canary_100000",
+    previous_stage_id: "canary_10000",
+    target_users: 100000,
+    required_clean_users: CANARY_100000_REQUIRED_CLEAN_USERS,
+    next_stage_id: "marketing_spike_700k_5d"
+  });
+}
+
+async function buildMarketingSpike700kControlReport(snapshot, dbAudit, orderRefresh) {
+  return buildCanaryStageExpansionReport(snapshot, dbAudit, orderRefresh, {
+    stage_id: "marketing_spike_700k_5d",
+    previous_stage_id: "canary_100000",
+    target_users: MARKETING_SPIKE_TARGET_USERS_5D,
+    required_clean_users: MARKETING_SPIKE_700K_REQUIRED_CLEAN_USERS,
+    next_stage_id: "guarded_public_launch",
+    require_marketing_spike_gate: true
+  });
+}
+
+async function buildCanaryLadderCommandCenterReport(snapshot, dbAudit, orderRefresh) {
+  const canary1 = buildCanary1ControlReport(snapshot, dbAudit, orderRefresh);
+  const canary10_20 = await buildCanary10_20ControlReport(snapshot, dbAudit, orderRefresh);
+  const canary100 = await buildCanary100ControlReport(snapshot, dbAudit, orderRefresh);
+  const canary1000 = await buildCanary1000ControlReport(snapshot, dbAudit, orderRefresh);
+  const canary10000 = await buildCanary10000ControlReport(snapshot, dbAudit, orderRefresh);
+  const canary100000 = await buildCanary100000ControlReport(snapshot, dbAudit, orderRefresh);
+  const marketing700k = await buildMarketingSpike700kControlReport(snapshot, dbAudit, orderRefresh);
+  const makeStage = (id, users, report, allowed, holdsKey = "stage_holds") => ({
+    id,
+    users,
+    status: report.status,
+    allowed: Boolean(allowed),
+    ok: report.ok === true,
+    blockers_count: Array.isArray(report.blockers) ? report.blockers.length : Number(report.blockers_count || 0),
+    holds_count: Array.isArray(report[holdsKey]) ? report[holdsKey].length : Number(report.canary_1_holds_count || report.stage_holds_count || 0),
+    warnings_count: Array.isArray(report.warnings) ? report.warnings.length : Number(report.warnings_count || 0),
+    next_step: report.next_step
+  });
+  const stages = [
+    makeStage("canary_1", 1, canary1, canary1.canary_1_allowed),
+    makeStage("canary_10_20", "10-20", canary10_20, canary10_20.canary_10_20_allowed, "canary_1_holds"),
+    makeStage("canary_100", 100, canary100, canary100.stage_allowed),
+    makeStage("canary_1000", 1000, canary1000, canary1000.stage_allowed),
+    makeStage("canary_10000", 10000, canary10000, canary10000.stage_allowed),
+    makeStage("canary_100000", 100000, canary100000, canary100000.stage_allowed),
+    makeStage("marketing_spike_700k_5d", MARKETING_SPIKE_TARGET_USERS_5D, marketing700k, marketing700k.stage_allowed)
+  ];
+  const blockers = stages.filter((stage) => stage.blockers_count > 0);
+  const holds = stages.filter((stage) => !stage.allowed && stage.blockers_count === 0);
+  const warningsCount = stages.reduce((sum, stage) => sum + Number(stage.warnings_count || 0), 0);
+  const firstLocked = stages.find((stage) => !stage.allowed) || null;
+  const nextStage = firstLocked?.id || "guarded_public_launch";
+  const currentAllowed = [...stages].reverse().find((stage) => stage.allowed) || null;
+  const stopNow = blockers.length > 0;
+
+  return {
+    status: stopNow ? "blocked_stop_now" : (firstLocked ? `waiting_for_${firstLocked.id}` : "all_canary_stages_clean"),
+    ok: !stopNow,
+    checked_at: new Date().toISOString(),
+    version: BACKEND_VERSION,
+    no_side_effects: true,
+    real_money_sent_by_this_endpoint: false,
+    stop_now: stopNow,
+    next_allowed_stage: nextStage,
+    highest_clean_stage: currentAllowed?.id || null,
+    stages,
+    observed: {
+      scanner_workers_alive: canary10_20.observed?.scanner_workers_alive ?? null,
+      active_shards: canary10_20.observed?.active_shards ?? null,
+      duplicate_shards: canary10_20.observed?.duplicate_shards || [],
+      available_wallets: canary10_20.observed?.available_wallets ?? null,
+      remote_signer_wallet_files: canary10_20.observed?.remote_signer_wallet_files ?? null,
+      failed_refunds_24h: canary10_20.observed?.failed_refunds_24h ?? null,
+      stale_processing_refunds_15m: canary10_20.observed?.stale_processing_refunds_15m ?? null,
+      retry_pending_refunds: canary10_20.observed?.canary_progression?.retry_pending_refunds ?? null,
+      matched_success_users: canary10_20.observed?.canary_progression?.matched_success_users ?? null,
+      marketing_spike_status: marketing700k.observed?.marketing_spike_status || "unknown"
+    },
+    blockers_count: blockers.length,
+    holds_count: holds.length,
+    warnings_count: warningsCount,
+    blockers,
+    holds,
+    promotion_order: stages.map((stage) => stage.id),
+    next_step: stopNow
+      ? "STOP: fix blocked canary stage before expanding."
+      : (firstLocked
+        ? firstLocked.next_step
+      : "All guarded canary stages are clean. Keep live monitoring before public launch.")
+  };
+}
+
+async function buildRollbackCommandCenterReport(snapshot, dbAudit, orderRefresh) {
+  const traffic = buildTrafficRampCommandCenterReport(snapshot, dbAudit, orderRefresh);
+  const ladder = await buildCanaryLadderCommandCenterReport(snapshot, dbAudit, orderRefresh);
+  const refundSafety = buildDepositRefundPayoutSafetyReport(snapshot, dbAudit);
+  const incident = buildIncidentStatusReport(snapshot);
+  const sla = buildProductionSlaReport(snapshot);
+  const processMetrics = buildProcessMetrics();
+  const counts = dbAudit?.counts || {};
+  const observed = {
+    scanner_workers_alive: Number(ladder.observed?.scanner_workers_alive || traffic.observed?.scanner_workers_alive || 0),
+    active_shards: Number(ladder.observed?.active_shards || traffic.observed?.active_shards || 0),
+    duplicate_shards: Array.isArray(ladder.observed?.duplicate_shards) ? ladder.observed.duplicate_shards : [],
+    available_wallets: Number(ladder.observed?.available_wallets || traffic.observed?.available_wallets || 0),
+    remote_signer_wallet_files: Number(ladder.observed?.remote_signer_wallet_files || traffic.observed?.remote_signer_wallet_files || 0),
+    pending_orders: Number(traffic.observed?.pending_orders || snapshot?.backlog?.counts?.pending_orders?.count || 0),
+    active_refunds: Number(refundSafety.observed?.active_refunds || traffic.observed?.active_refunds || 0),
+    pending_refunds: Number(refundSafety.observed?.pending_refunds || traffic.observed?.pending_refunds || 0),
+    processing_refunds: Number(refundSafety.observed?.processing_refunds || traffic.observed?.processing_refunds || 0),
+    failed_refunds_24h: Number(refundSafety.observed?.failed_refunds_24h || traffic.observed?.failed_refunds_24h || 0),
+    stale_processing_refunds_15m: Number(refundSafety.observed?.stale_processing_refunds_15m || traffic.observed?.stale_processing_refunds_15m || 0),
+    fresh_pending_without_wallet: Number(traffic.observed?.fresh_pending_without_wallet || counts.fresh_pending_orders_without_wallet?.count || 0),
+    heap_used_mb: Number(processMetrics.memory_mb?.heap_used || 0),
+    active_requests: Number(processMetrics.requests?.active_requests || 0),
+    highest_active_requests: Number(processMetrics.requests?.highest_active_requests || 0),
+    slow_requests_total: Number(processMetrics.requests?.slow_requests_total || 0),
+    errors_total: Number(processMetrics.requests?.errors_total || 0)
+  };
+  const checks = [];
+  const add = (name, ok, detail, severity = "blocker") => checks.push({ name, ok: Boolean(ok), detail: String(detail), severity });
+
+  add("traffic_ramp_not_stopped", traffic.stop_now !== true && traffic.blockers.length === 0, `status=${traffic.status}, stop_now=${traffic.stop_now}, blockers=${traffic.blockers.length}`);
+  add("canary_ladder_not_stopped", ladder.stop_now !== true && ladder.blockers_count === 0, `status=${ladder.status}, stop_now=${ladder.stop_now}, blockers=${ladder.blockers_count}`);
+  add("final_gate_ready", snapshot?.gate?.status === "ready", `status=${snapshot?.gate?.status || "unknown"}`);
+  add("refund_safety_not_blocked", refundSafety.ok === true, `status=${refundSafety.status}, blockers=${refundSafety.blockers.length}`);
+  add("incident_clear_or_watch", incident.status === "clear" || incident.status === "watch", `status=${incident.status}`);
+  add("sla_not_blocked", sla.status !== "blocked", `status=${sla.status}`);
+  add("scanner_workers_64_alive", observed.scanner_workers_alive >= MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS, `alive=${observed.scanner_workers_alive}, required=${MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS}`);
+  add("scanner_active_shards_64", observed.active_shards >= MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS, `active=${observed.active_shards}, required=${MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS}`);
+  add("scanner_duplicate_shards_zero", observed.duplicate_shards.length === 0, `duplicates=${observed.duplicate_shards.join(",") || "0"}`);
+  add("wallet_capacity_1_5m_ready", observed.available_wallets >= CAPACITY_TARGET_USERS, `available=${observed.available_wallets}, target=${CAPACITY_TARGET_USERS}`);
+  add("remote_signer_wallet_files_cover_1_5m", observed.remote_signer_wallet_files >= CAPACITY_TARGET_USERS, `wallet_files=${observed.remote_signer_wallet_files}, target=${CAPACITY_TARGET_USERS}`);
+  add("fresh_pending_without_wallet_zero", observed.fresh_pending_without_wallet === 0, `fresh_pending_without_wallet=${observed.fresh_pending_without_wallet}`);
+  add("stale_processing_refunds_zero", observed.stale_processing_refunds_15m <= OPS_ROLLBACK_MAX_STALE_REFUNDS_15M, `stale=${observed.stale_processing_refunds_15m}, max=${OPS_ROLLBACK_MAX_STALE_REFUNDS_15M}`);
+  add("failed_refunds_24h_watch", observed.failed_refunds_24h <= OPS_ROLLBACK_MAX_FAILED_REFUNDS_24H, `failed_24h=${observed.failed_refunds_24h}, max=${OPS_ROLLBACK_MAX_FAILED_REFUNDS_24H}`, "warning");
+  add("active_refund_queue_watch", observed.active_refunds <= OPS_LOAD_GUARD_MAX_ACTIVE_REFUNDS, `active=${observed.active_refunds}, max=${OPS_LOAD_GUARD_MAX_ACTIVE_REFUNDS}`, "warning");
+  add("pending_backlog_watch", observed.pending_orders <= OPS_LOAD_GUARD_MAX_PENDING_ORDERS, `pending=${observed.pending_orders}, max=${OPS_LOAD_GUARD_MAX_PENDING_ORDERS}`, "warning");
+  add("heap_used_watch", observed.heap_used_mb <= OPS_LOAD_GUARD_MAX_HEAP_USED_MB, `heap_used_mb=${observed.heap_used_mb}, max=${OPS_LOAD_GUARD_MAX_HEAP_USED_MB}`, "warning");
+  add("active_requests_watch", observed.active_requests <= OPS_LOAD_GUARD_MAX_ACTIVE_REQUESTS, `active_requests=${observed.active_requests}, max=${OPS_LOAD_GUARD_MAX_ACTIVE_REQUESTS}`, "warning");
+
+  const blockers = checks.filter((item) => !item.ok && item.severity === "blocker");
+  const warnings = [
+    ...checks.filter((item) => !item.ok && item.severity !== "blocker"),
+    ...traffic.warnings.map((item) => ({ ...item, source: "traffic_ramp" })),
+    ...refundSafety.warnings.map((item) => ({ ...item, source: "refund_safety" }))
+  ];
+  const uniqueWarnings = Array.from(new Map(warnings.map((item) => [`${item.source || "local"}:${item.name || item.detail}:${item.detail || ""}`, item])).values());
+  const stopNow = blockers.length > 0 || traffic.stop_now === true || ladder.stop_now === true;
+
+  return {
+    status: stopNow ? "blocked_stop_now" : (uniqueWarnings.length ? "watch_no_rollback" : "ready_no_rollback"),
+    ok: !stopNow,
+    checked_at: new Date().toISOString(),
+    version: BACKEND_VERSION,
+    no_side_effects: true,
+    real_money_sent_by_this_endpoint: false,
+    stop_now: stopNow,
+    target_users: CAPACITY_TARGET_USERS,
+    pre_canary_hold_hours: PRE_CANARY_HOLD_HOURS,
+    next_allowed_stage: ladder.next_allowed_stage,
+    highest_clean_stage: ladder.highest_clean_stage,
+    traffic_ramp_status: traffic.status,
+    canary_ladder_status: ladder.status,
+    incident_status: incident.status,
+    sla_status: sla.status,
+    observed,
+    rollback_triggers_count: blockers.length,
+    warnings_count: uniqueWarnings.length,
+    rollback_triggers: blockers,
+    warnings: uniqueWarnings,
+    checks,
+    stop_rules: [
+      "Stop expansion if any blocker appears in this endpoint.",
+      "Stop expansion if scanner workers/shards drop below 64 or duplicate shards appear.",
+      "Stop expansion if stale processing refunds appear.",
+      "Pause expansion and inspect if active refund queue, pending backlog, heap, or active requests exceed watch limits."
+    ],
+    next_step: stopNow
+      ? "STOP: fix rollback trigger before the next canary step."
+      : "Keep monitoring through the pre-canary hold window; do not mutate payment data from this endpoint."
+  };
+}
+
+async function buildPreCanaryLoadGuardReport(snapshot, dbAudit, orderRefresh) {
+  const rollback = await buildRollbackCommandCenterReport(snapshot, dbAudit, orderRefresh);
+  const processMetrics = buildProcessMetrics();
+  const observed = {
+    ...rollback.observed,
+    uptime_seconds: processMetrics.uptime_seconds,
+    requests_total: Number(processMetrics.requests?.requests_total || 0),
+    responses_total: Number(processMetrics.requests?.responses_total || 0),
+    max_duration_ms: Number(processMetrics.requests?.max_duration_ms || 0)
+  };
+  const checks = [];
+  const add = (name, ok, detail, severity = "blocker") => checks.push({ name, ok: Boolean(ok), detail: String(detail), severity });
+
+  add("rollback_center_ok", rollback.ok === true && rollback.stop_now !== true, `status=${rollback.status}, triggers=${rollback.rollback_triggers_count}`);
+  add("scanner_capacity_64_64", observed.scanner_workers_alive >= MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS && observed.active_shards >= MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS, `workers=${observed.scanner_workers_alive}, shards=${observed.active_shards}`);
+  add("wallet_and_signer_pool_cover_1_5m", observed.available_wallets >= CAPACITY_TARGET_USERS && observed.remote_signer_wallet_files >= CAPACITY_TARGET_USERS, `available=${observed.available_wallets}, signer_files=${observed.remote_signer_wallet_files}`);
+  add("refund_queue_inside_watch_limit", observed.active_refunds <= OPS_LOAD_GUARD_MAX_ACTIVE_REFUNDS, `active=${observed.active_refunds}, max=${OPS_LOAD_GUARD_MAX_ACTIVE_REFUNDS}`, "warning");
+  add("pending_orders_inside_watch_limit", observed.pending_orders <= OPS_LOAD_GUARD_MAX_PENDING_ORDERS, `pending=${observed.pending_orders}, max=${OPS_LOAD_GUARD_MAX_PENDING_ORDERS}`, "warning");
+  add("heap_inside_watch_limit", observed.heap_used_mb <= OPS_LOAD_GUARD_MAX_HEAP_USED_MB, `heap=${observed.heap_used_mb}, max=${OPS_LOAD_GUARD_MAX_HEAP_USED_MB}`, "warning");
+  add("active_requests_inside_watch_limit", observed.active_requests <= OPS_LOAD_GUARD_MAX_ACTIVE_REQUESTS, `active=${observed.active_requests}, max=${OPS_LOAD_GUARD_MAX_ACTIVE_REQUESTS}`, "warning");
+  add("fresh_pending_without_wallet_zero", observed.fresh_pending_without_wallet === 0, `fresh_pending_without_wallet=${observed.fresh_pending_without_wallet}`);
+  add("stale_processing_refunds_zero", observed.stale_processing_refunds_15m === 0, `stale=${observed.stale_processing_refunds_15m}`);
+
+  const blockers = checks.filter((item) => !item.ok && item.severity === "blocker");
+  const warnings = [
+    ...checks.filter((item) => !item.ok && item.severity !== "blocker"),
+    ...rollback.warnings.map((item) => ({ ...item, source: "rollback_command_center" }))
+  ];
+  const uniqueWarnings = Array.from(new Map(warnings.map((item) => [`${item.source || "local"}:${item.name || item.detail}:${item.detail || ""}`, item])).values());
+  const ready = blockers.length === 0;
+
+  return {
+    status: ready ? (uniqueWarnings.length ? "watch_ready_for_12h_hold" : "ready_for_12h_hold") : "blocked",
+    ok: ready,
+    checked_at: new Date().toISOString(),
+    version: BACKEND_VERSION,
+    no_side_effects: true,
+    real_money_sent_by_this_endpoint: false,
+    ready_for_next_12h_without_real_test: ready,
+    pre_canary_hold_hours: PRE_CANARY_HOLD_HOURS,
+    watch_window: {
+      hold_hours: PRE_CANARY_HOLD_HOURS,
+      recommended_check_interval_minutes: 30,
+      next_gate_after_hold: "/ops/traffic-ramp-command-center/summary?fresh=true"
+    },
+    guard_limits: {
+      max_active_refunds: OPS_LOAD_GUARD_MAX_ACTIVE_REFUNDS,
+      max_pending_orders: OPS_LOAD_GUARD_MAX_PENDING_ORDERS,
+      max_heap_used_mb: OPS_LOAD_GUARD_MAX_HEAP_USED_MB,
+      max_active_requests: OPS_LOAD_GUARD_MAX_ACTIVE_REQUESTS
+    },
+    observed,
+    blockers_count: blockers.length,
+    warnings_count: uniqueWarnings.length,
+    blockers,
+    warnings: uniqueWarnings,
+    checks,
+    next_step: ready
+      ? "Hold monitoring for the configured window, then re-check traffic ramp and canary ladder before opening the next stage."
+      : "Fix blockers before relying on unattended pre-canary monitoring."
+  };
+}
+
+async function buildOperatorShiftHandoffReport(snapshot, dbAudit, orderRefresh) {
+  const rollback = await buildRollbackCommandCenterReport(snapshot, dbAudit, orderRefresh);
+  const loadGuard = await buildPreCanaryLoadGuardReport(snapshot, dbAudit, orderRefresh);
+  const ok = rollback.ok === true && loadGuard.ok === true;
+  const blockerCount = Number(rollback.rollback_triggers_count || 0) + Number(loadGuard.blockers_count || 0);
+  const warningCount = Number(rollback.warnings_count || 0) + Number(loadGuard.warnings_count || 0);
+  return {
+    status: ok ? "handoff_ready" : "handoff_blocked",
+    ok,
+    checked_at: new Date().toISOString(),
+    version: BACKEND_VERSION,
+    no_side_effects: true,
+    real_money_sent_by_this_endpoint: false,
+    safe_to_leave_monitoring_on: ok,
+    blocker_count: blockerCount,
+    warnings_count: warningCount,
+    current_stage: rollback.next_allowed_stage,
+    highest_clean_stage: rollback.highest_clean_stage,
+    pre_canary_hold_hours: PRE_CANARY_HOLD_HOURS,
+    operator_do_now: ok
+      ? [
+          "Keep monitors running.",
+          "Do not send another real TON test from this endpoint.",
+          "Before any canary expansion, re-open the app deposit modal and re-check live-watch/traffic-ramp summaries."
+        ]
+      : [
+          "Do not expand canary.",
+          "Open rollback_command_center and fix blocker items first.",
+          "Re-check scanner, final gate, refund safety, and signer health after the fix."
+        ],
+    do_not_do: [
+      "Do not mutate payment_orders or withdraw rows from ops endpoints.",
+      "Do not expose or paste mnemonic/private key material into logs, GitHub, or chat.",
+      "Do not open 10-20 users until canary_1 remains clean and this handoff stays ok."
+    ],
+    watch_endpoints: [
+      "/ops/operator-shift-handoff/summary?fresh=true",
+      "/ops/big-real-test-95-gate/summary?fresh=true",
+      "/ops/public-launch-stage-timeline/summary?fresh=true",
+      "/ops/rollback-command-center/summary?fresh=true",
+      "/ops/pre-canary-load-guard/summary?fresh=true",
+      "/ops/traffic-ramp-command-center/summary?fresh=true",
+      "/ops/canary-ladder-command-center/summary?fresh=true",
+      "/ops/scanner-shards",
+      "/ops/final-gate"
+    ],
+    rollback_summary: {
+      status: rollback.status,
+      stop_now: rollback.stop_now,
+      triggers: rollback.rollback_triggers_count,
+      warnings: rollback.warnings_count,
+      observed: rollback.observed
+    },
+    load_guard_summary: {
+      status: loadGuard.status,
+      ready_for_next_12h_without_real_test: loadGuard.ready_for_next_12h_without_real_test,
+      blockers: loadGuard.blockers_count,
+      warnings: loadGuard.warnings_count,
+      guard_limits: loadGuard.guard_limits
+    },
+    next_step: ok
+      ? "Continue backend ops monitoring; next user action is controlled canary expansion only after gates stay clean."
+      : "Fix handoff blockers before leaving this service unattended."
+  };
+}
+
+async function buildBigRealTest95GateReport(snapshot, dbAudit, orderRefresh) {
+  const [
+    rollback,
+    loadGuard,
+    ladder,
+    canary10_20,
+    canary100,
+    canary1000,
+    canary10000,
+    canary100000,
+    marketing700k
+  ] = await Promise.all([
+    buildRollbackCommandCenterReport(snapshot, dbAudit, orderRefresh),
+    buildPreCanaryLoadGuardReport(snapshot, dbAudit, orderRefresh),
+    buildCanaryLadderCommandCenterReport(snapshot, dbAudit, orderRefresh),
+    buildCanary10_20ControlReport(snapshot, dbAudit, orderRefresh),
+    buildCanary100ControlReport(snapshot, dbAudit, orderRefresh),
+    buildCanary1000ControlReport(snapshot, dbAudit, orderRefresh),
+    buildCanary10000ControlReport(snapshot, dbAudit, orderRefresh),
+    buildCanary100000ControlReport(snapshot, dbAudit, orderRefresh),
+    buildMarketingSpike700kControlReport(snapshot, dbAudit, orderRefresh)
+  ]);
+  const observed = {
+    scanner_workers_alive: rollback.observed?.scanner_workers_alive ?? canary10_20.observed?.scanner_workers_alive ?? null,
+    active_shards: rollback.observed?.active_shards ?? canary10_20.observed?.active_shards ?? null,
+    duplicate_shards: rollback.observed?.duplicate_shards || canary10_20.observed?.duplicate_shards || [],
+    available_wallets: rollback.observed?.available_wallets ?? canary10_20.observed?.available_wallets ?? null,
+    remote_signer_wallet_files: rollback.observed?.remote_signer_wallet_files ?? canary10_20.observed?.remote_signer_wallet_files ?? null,
+    pending_orders: rollback.observed?.pending_orders ?? canary10_20.observed?.pending_orders ?? null,
+    active_refunds: rollback.observed?.active_refunds ?? null,
+    pending_refunds: rollback.observed?.pending_refunds ?? canary10_20.observed?.canary_progression?.pending_refunds ?? null,
+    processing_refunds: rollback.observed?.processing_refunds ?? canary10_20.observed?.canary_progression?.processing_refunds ?? null,
+    failed_refunds_24h: rollback.observed?.failed_refunds_24h ?? canary10_20.observed?.failed_refunds_24h ?? null,
+    stale_processing_refunds_15m: rollback.observed?.stale_processing_refunds_15m ?? canary10_20.observed?.stale_processing_refunds_15m ?? null,
+    retry_pending_refunds: canary10_20.observed?.canary_progression?.retry_pending_refunds ?? null,
+    matched_success_users: canary10_20.observed?.canary_progression?.matched_success_users ?? null
+  };
+  const stageChecks = [
+    {
+      id: "canary_1",
+      target_users: 1,
+      clean: canary10_20.canary_1_clean === true && canary10_20.canary_10_20_allowed === true,
+      current_status: canary10_20.status,
+      unlocks: "canary_10_20",
+      gate: "/ops/canary-10-20-control/summary?fresh=true"
+    },
+    {
+      id: "canary_10_20",
+      target_users: `${CANARY_10_20_TARGET_MIN_USERS}-${CANARY_10_20_TARGET_MAX_USERS}`,
+      clean: canary100.stage_allowed === true,
+      current_status: canary100.status,
+      unlocks: "canary_100",
+      gate: "/ops/canary-100-control/summary?fresh=true"
+    },
+    {
+      id: "canary_100",
+      target_users: 100,
+      clean: canary1000.stage_allowed === true,
+      current_status: canary1000.status,
+      unlocks: "canary_1000",
+      gate: "/ops/canary-1000-control/summary?fresh=true"
+    },
+    {
+      id: "canary_1000",
+      target_users: 1000,
+      clean: canary10000.stage_allowed === true,
+      current_status: canary10000.status,
+      unlocks: "canary_10000",
+      gate: "/ops/canary-10000-control/summary?fresh=true"
+    },
+    {
+      id: "canary_10000",
+      target_users: 10000,
+      clean: canary100000.stage_allowed === true,
+      current_status: canary100000.status,
+      unlocks: "canary_100000",
+      gate: "/ops/canary-100000-control/summary?fresh=true"
+    },
+    {
+      id: "canary_100000",
+      target_users: 100000,
+      clean: marketing700k.stage_allowed === true,
+      current_status: marketing700k.status,
+      unlocks: "marketing_spike_700k_5d",
+      gate: "/ops/marketing-spike-700k-control/summary?fresh=true"
+    }
+  ];
+  const blockers = [];
+  const warnings = [];
+  const addBlocker = (name, detail) => blockers.push({ name, ok: false, detail: String(detail) });
+  const addWarning = (name, detail) => warnings.push({ name, ok: false, detail: String(detail) });
+
+  if (rollback.ok !== true || rollback.stop_now === true) addBlocker("rollback_command_center_not_clear", `status=${rollback.status}, stop_now=${rollback.stop_now}`);
+  if (loadGuard.ok !== true) addBlocker("pre_canary_load_guard_not_clear", `status=${loadGuard.status}`);
+  if (ladder.ok !== true || ladder.stop_now === true) addBlocker("canary_ladder_not_clear", `status=${ladder.status}, stop_now=${ladder.stop_now}`);
+  if (snapshot?.gate?.status !== "ready") addBlocker("final_gate_not_ready", `status=${snapshot?.gate?.status || "unknown"}`);
+  if (Number(observed.scanner_workers_alive || 0) < MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS) addBlocker("scanner_workers_below_64", `alive=${observed.scanner_workers_alive}`);
+  if (Number(observed.active_shards || 0) < MARKETING_SPIKE_RECOMMENDED_SCANNER_WORKERS) addBlocker("scanner_active_shards_below_64", `active=${observed.active_shards}`);
+  if (Array.isArray(observed.duplicate_shards) && observed.duplicate_shards.length > 0) addBlocker("scanner_duplicate_shards_present", `duplicate_shards=${observed.duplicate_shards.join(",")}`);
+  if (Number(observed.available_wallets || 0) < CAPACITY_TARGET_USERS) addBlocker("wallet_capacity_below_1_5m", `available=${observed.available_wallets}, target=${CAPACITY_TARGET_USERS}`);
+  if (Number(observed.remote_signer_wallet_files || 0) < CAPACITY_TARGET_USERS) addBlocker("remote_signer_wallet_files_below_1_5m", `files=${observed.remote_signer_wallet_files}, target=${CAPACITY_TARGET_USERS}`);
+  if (Number(observed.failed_refunds_24h || 0) > 0) addBlocker("failed_refunds_24h_present", `failed_refunds_24h=${observed.failed_refunds_24h}`);
+  if (Number(observed.stale_processing_refunds_15m || 0) > 0) addBlocker("stale_processing_refunds_present", `stale_processing_refunds_15m=${observed.stale_processing_refunds_15m}`);
+  if (Number(observed.retry_pending_refunds || 0) > 0) addBlocker("retry_pending_refunds_present", `retry_pending_refunds=${observed.retry_pending_refunds}`);
+  if (Number(observed.pending_orders || 0) > 0) addWarning("pending_orders_watch", `pending_orders=${observed.pending_orders}`);
+  if (Number(observed.active_refunds || 0) > 0) addWarning("active_refunds_watch", `active_refunds=${observed.active_refunds}`);
+
+  const cleanStageCount = stageChecks.filter((stage) => stage.clean).length;
+  const firstUncleanStage = stageChecks.find((stage) => !stage.clean) || null;
+  const readyForBigRealTest = blockers.length === 0 && cleanStageCount === stageChecks.length;
+  const preBigRealTestCompletionPercent = Math.min(95, Math.round((cleanStageCount / stageChecks.length) * 95));
+  const status = blockers.length
+    ? "blocked_before_big_real_test"
+    : (readyForBigRealTest ? "ready_for_big_real_test_final_5_percent" : `waiting_for_${firstUncleanStage.id}_clean`);
+
+  return {
+    status,
+    ok: blockers.length === 0,
+    checked_at: new Date().toISOString(),
+    version: BACKEND_VERSION,
+    no_side_effects: true,
+    real_money_sent_by_this_endpoint: false,
+    do_not_send_ton_from_this_endpoint: true,
+    ready_for_big_real_test_final_5_percent: readyForBigRealTest,
+    big_real_test_locked_until_95_percent_done: !readyForBigRealTest,
+    pre_big_real_test_completion_percent: preBigRealTestCompletionPercent,
+    final_5_percent_reserved_for: "one controlled high-confidence big real test plus post-test canary verification",
+    current_required_stage: firstUncleanStage?.id || "big_real_test_final_5_percent",
+    next_allowed_stage: readyForBigRealTest ? "big_real_test_final_5_percent" : (firstUncleanStage?.id || "hold"),
+    clean_stage_count: cleanStageCount,
+    required_clean_stage_count: stageChecks.length,
+    stage_checks: stageChecks,
+    observed,
+    blockers_count: blockers.length,
+    warnings_count: warnings.length,
+    blockers,
+    warnings,
+    stop_rules: [
+      "Do not run the big real test until ready_for_big_real_test_final_5_percent is true.",
+      "Do not skip any canary stage.",
+      "Stop immediately if rollback_command_center stop_now becomes true.",
+      "Stop if scanner coverage drops below 64/64, duplicate shards appear, failed refunds appear, or stale processing refunds appear."
+    ],
+    verify_before_big_real_test: [
+      "/ops/big-real-test-95-gate/summary?fresh=true",
+      "/ops/canary-ladder-command-center/summary?fresh=true",
+      "/ops/rollback-command-center/summary?fresh=true",
+      "/ops/marketing-spike-700k-control/summary?fresh=true",
+      "/ops/scanner-shards",
+      "/ops/final-gate"
+    ],
+    next_step: readyForBigRealTest
+      ? "Big real test is allowed as the final 5 percent. Keep rollback and scanner monitors open during the test."
+      : `Continue the canary ladder. The big real test remains locked until ${firstUncleanStage?.id || "all stages"} is clean.`
+  };
+}
+
+async function buildPublicLaunchStageTimelineReport(snapshot, dbAudit, orderRefresh) {
+  const bigGate = await buildBigRealTest95GateReport(snapshot, dbAudit, orderRefresh);
+  const timeline = [
+    ...bigGate.stage_checks.map((stage, index) => ({
+      order: index + 1,
+      id: stage.id,
+      target_users: stage.target_users,
+      state: stage.clean ? "clean" : (stage.id === bigGate.current_required_stage ? "current" : "locked"),
+      gate: stage.gate,
+      unlocks: stage.unlocks,
+      current_status: stage.current_status
+    })),
+    {
+      order: bigGate.stage_checks.length + 1,
+      id: "big_real_test_final_5_percent",
+      target_users: "controlled_high_confidence",
+      state: bigGate.ready_for_big_real_test_final_5_percent ? "current" : "locked",
+      gate: "/ops/big-real-test-95-gate/summary?fresh=true",
+      unlocks: "post_big_real_test_canary_verification",
+      current_status: bigGate.status
+    },
+    {
+      order: bigGate.stage_checks.length + 2,
+      id: "guarded_public_launch",
+      target_users: CAPACITY_TARGET_USERS,
+      state: "locked_until_big_real_test_passes",
+      gate: "/ops/final-gate",
+      unlocks: "public_traffic",
+      current_status: "manual_release_required_after_big_real_test"
+    }
+  ];
+
+  return {
+    status: bigGate.ready_for_big_real_test_final_5_percent ? "timeline_ready_for_final_5_percent" : "timeline_in_progress",
+    ok: bigGate.ok,
+    checked_at: bigGate.checked_at,
+    version: bigGate.version,
+    no_side_effects: true,
+    real_money_sent_by_this_endpoint: false,
+    completion_percent_before_big_real_test: bigGate.pre_big_real_test_completion_percent,
+    current_required_stage: bigGate.current_required_stage,
+    ready_for_big_real_test_final_5_percent: bigGate.ready_for_big_real_test_final_5_percent,
+    blockers_count: bigGate.blockers_count,
+    warnings_count: bigGate.warnings_count,
+    timeline,
+    observed: bigGate.observed,
+    next_step: bigGate.next_step
+  };
+}
+
+function buildReadOnlyLoadEvidenceStatus(envName) {
+  const raw = String(process.env[envName] || "").trim();
+  if (!raw) {
+    return {
+      ok: false,
+      env_name: envName,
+      configured: false,
+      detail: `${envName} is not set; run the read-only load ramp and record the passed timestamp before opening this stage.`
+    };
+  }
+  const parsed = new Date(raw);
+  const ms = parsed.getTime();
+  if (Number.isNaN(ms)) {
+    return {
+      ok: false,
+      env_name: envName,
+      configured: true,
+      value: raw,
+      detail: `${envName} is not a valid ISO timestamp.`
+    };
+  }
+  const ageHours = (Date.now() - ms) / (60 * 60 * 1000);
+  const fresh = ageHours >= 0 && ageHours <= LOAD_GATE_EVIDENCE_MAX_AGE_HOURS;
+  return {
+    ok: fresh,
+    env_name: envName,
+    configured: true,
+    value: parsed.toISOString(),
+    age_hours: Number(ageHours.toFixed(2)),
+    max_age_hours: LOAD_GATE_EVIDENCE_MAX_AGE_HOURS,
+    detail: fresh
+      ? `${envName} is fresh.`
+      : `${envName} is stale or in the future; age_hours=${Number(ageHours.toFixed(2))}, max=${LOAD_GATE_EVIDENCE_MAX_AGE_HOURS}.`
+  };
+}
+
+async function buildLoadStageGateReport(snapshot, dbAudit, orderRefresh, options) {
+  const progression = await buildCanaryProgressionSignal(DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID, orderRefresh);
+  const scannerWorkersAlive = Number(snapshot?.scanner?.scanner_workers_alive || snapshot?.shards?.scanner_workers_alive || 0);
+  const activeShards = Number(snapshot?.shards?.active_shards || 0);
+  const duplicateShards = Array.isArray(snapshot?.shards?.duplicate_shards) ? snapshot.shards.duplicate_shards : [];
+  const availableWallets = Number(snapshot?.wallet_capacity?.counts?.available_wallets?.count || 0);
+  const remoteSignerWalletFiles = Number(snapshot?.ton_signer?.remote_signer?.wallet_files || 0);
+  const pendingOrders = Number(snapshot?.backlog?.counts?.pending_orders?.count || dbAudit?.counts?.pending_orders_total?.count || 0);
+  const activeRefunds = Number(dbAudit?.counts?.deposit_refund_withdraws_active?.count || 0);
+  const pendingRefunds = Number(progression.pending_refunds || dbAudit?.counts?.deposit_refund_withdraws_pending?.count || 0);
+  const processingRefunds = Number(progression.processing_refunds || dbAudit?.counts?.deposit_refund_withdraws_processing?.count || 0);
+  const retryPendingRefunds = Number(progression.retry_pending_refunds || 0);
+  const failedRefunds = Number(progression.failed_refunds || dbAudit?.counts?.deposit_refund_withdraws_failed_24h?.count || 0);
+  const staleRefunds = Number(progression.stale_processing_refunds || dbAudit?.counts?.deposit_refund_withdraws_processing_stale_15m?.count || 0);
+  const matchedSuccessUsers = Number(progression.matched_success_users || 0);
+  const remoteConfirmedRefundUsers = Number(progression.fresh_remote_confirmed_refund_users || 0);
+  const evidence = buildReadOnlyLoadEvidenceStatus(options.load_evidence_env);
+  const checks = [];
+  const add = (name, ok, detail, severity = "blocker") => checks.push({ name, ok: Boolean(ok), detail: String(detail), severity });
+
+  add("final_gate_ready", snapshot?.gate?.status === "ready", `final_gate=${snapshot?.gate?.status || "unknown"}`, "blocker");
+  add("redis_ready", snapshot?.redis?.ok === true, `redis=${snapshot?.redis?.message || snapshot?.redis?.backend || "unknown"}`, "blocker");
+  add("redis_deep_ready", snapshot?.redis_deep?.ok === true, `redis_deep=${snapshot?.redis_deep?.message || "unknown"}`, "blocker");
+  add("ton_signer_ready", snapshot?.ton_signer?.ok === true, `remote_files=${remoteSignerWalletFiles}`, "blocker");
+  add("scanner_workers_min_ready", scannerWorkersAlive >= options.min_scanner_workers, `alive=${scannerWorkersAlive}, required=${options.min_scanner_workers}`, "blocker");
+  add("scanner_active_shards_min_ready", activeShards >= options.min_active_shards, `active=${activeShards}, required=${options.min_active_shards}`, "blocker");
+  add("scanner_duplicate_shards_zero", duplicateShards.length === 0, `duplicates=${duplicateShards.join(",") || "0"}`, "blocker");
+  add("wallet_capacity_1_5m_ready", availableWallets >= CAPACITY_TARGET_USERS, `available=${availableWallets}, target=${CAPACITY_TARGET_USERS}`, "blocker");
+  add("remote_signer_wallet_files_ready", remoteSignerWalletFiles >= CAPACITY_TARGET_USERS, `files=${remoteSignerWalletFiles}, target=${CAPACITY_TARGET_USERS}`, "blocker");
+  add("refund_retry_pending_zero", retryPendingRefunds === 0, `retry_pending=${retryPendingRefunds}`, "blocker");
+  add("refund_failed_zero", failedRefunds === 0, `failed=${failedRefunds}`, "blocker");
+  add("refund_stale_processing_zero", staleRefunds === 0, `stale=${staleRefunds}`, "blocker");
+  add("stage_canary_clean", matchedSuccessUsers >= options.required_clean_users && remoteConfirmedRefundUsers >= options.required_clean_users, `matched=${matchedSuccessUsers}, remote_confirmed=${remoteConfirmedRefundUsers}, required=${options.required_clean_users}`, "stage_hold");
+  add("matched_success_users_ready", matchedSuccessUsers >= options.required_clean_users, `matched=${matchedSuccessUsers}, required=${options.required_clean_users}`, "stage_hold");
+  add("remote_confirmed_refunds_ready", remoteConfirmedRefundUsers >= options.required_clean_users, `remote_confirmed=${remoteConfirmedRefundUsers}, required=${options.required_clean_users}`, "stage_hold");
+  add("read_only_load_smoke_evidence_fresh", evidence.ok === true, evidence.detail, "evidence_hold");
+  add("pending_orders_watch", pendingOrders <= options.max_pending_orders_warning, `pending_orders=${pendingOrders}, watch_limit=${options.max_pending_orders_warning}`, "warning");
+  add("active_refunds_watch", activeRefunds <= OPS_LOAD_GUARD_MAX_ACTIVE_REFUNDS, `active_refunds=${activeRefunds}, watch_limit=${OPS_LOAD_GUARD_MAX_ACTIVE_REFUNDS}`, "warning");
+  add("pending_refunds_watch", pendingRefunds <= options.target_users, `pending_refunds=${pendingRefunds}, target_users=${options.target_users}`, "warning");
+  add("processing_refunds_watch", processingRefunds <= options.target_users, `processing_refunds=${processingRefunds}, target_users=${options.target_users}`, "warning");
+  if (options.recommended_scanner_workers) {
+    add("scanner_workers_recommended_capacity", scannerWorkersAlive >= options.recommended_scanner_workers, `alive=${scannerWorkersAlive}, recommended=${options.recommended_scanner_workers}`, "warning");
+  }
+
+  const blockers = [
+    ...checks.filter((item) => !item.ok && item.severity === "blocker")
+  ];
+  const stageHolds = checks.filter((item) => !item.ok && item.severity === "stage_hold");
+  const evidenceHolds = checks.filter((item) => !item.ok && item.severity === "evidence_hold");
+  const warnings = [
+    ...checks.filter((item) => !item.ok && item.severity === "warning")
+  ];
+  const uniqueBlockers = Array.from(new Map(blockers.map((item) => [`${item.source || "local"}:${item.name}:${item.detail}`, item])).values());
+  const uniqueWarnings = Array.from(new Map(warnings.map((item) => [`${item.source || "local"}:${item.name}:${item.detail}`, item])).values());
+  const opsClear = uniqueBlockers.length === 0;
+  const stageClean = stageHolds.length === 0;
+  const evidenceFresh = evidenceHolds.length === 0;
+  const safeToRunReadOnlyLoadTest = opsClear && stageClean;
+  const safeToOpenTargetStage = safeToRunReadOnlyLoadTest && evidenceFresh;
+  const status = uniqueBlockers.length
+    ? "blocked"
+    : (!stageClean
+      ? `waiting_for_${options.previous_stage}_clean`
+      : (!evidenceFresh ? "ready_for_readonly_load_test" : `${options.target_stage}_gate_ready`));
+
+  return {
+    status,
+    ok: uniqueBlockers.length === 0,
+    checked_at: new Date().toISOString(),
+    version: BACKEND_VERSION,
+    load_gate_version: LOAD_GATE_VERSION,
+    no_side_effects: true,
+    real_money_sent_by_this_endpoint: false,
+    target_stage: options.target_stage,
+    previous_stage: options.previous_stage,
+    target_users: options.target_users,
+    required_clean_users: options.required_clean_users,
+    safe_to_run_readonly_load_test: safeToRunReadOnlyLoadTest,
+    safe_to_open_target_stage: safeToOpenTargetStage,
+    read_only_load_evidence_required: true,
+    read_only_load_evidence: evidence,
+    thresholds: {
+      min_scanner_workers: options.min_scanner_workers,
+      min_active_shards: options.min_active_shards,
+      recommended_scanner_workers: options.recommended_scanner_workers || null,
+      max_p95_ms: LOAD_GATE_MAX_P95_MS,
+      max_failures: LOAD_GATE_MAX_FAILURES,
+      evidence_max_age_hours: LOAD_GATE_EVIDENCE_MAX_AGE_HOURS
+    },
+    observed: {
+      scanner_workers_alive: scannerWorkersAlive,
+      active_shards: activeShards,
+      duplicate_shards: duplicateShards,
+      available_wallets: availableWallets,
+      remote_signer_wallet_files: remoteSignerWalletFiles,
+      pending_orders: pendingOrders,
+      active_refunds: activeRefunds,
+      pending_refunds: pendingRefunds,
+      processing_refunds: processingRefunds,
+      retry_pending_refunds: retryPendingRefunds,
+      failed_refunds: failedRefunds,
+      stale_processing_refunds: staleRefunds,
+      matched_success_users: matchedSuccessUsers,
+      remote_confirmed_refund_users: remoteConfirmedRefundUsers,
+      final_gate_status: snapshot?.gate?.status || "unknown",
+      redis_status: snapshot?.redis?.ok === true ? "ready" : "not_ready",
+      redis_deep_status: snapshot?.redis_deep?.ok === true ? "ready" : "not_ready",
+      signer_status: snapshot?.ton_signer?.ok === true ? "ready" : "not_ready",
+      stage_status: stageHolds.length ? `waiting_for_${options.previous_stage}_clean` : "clean"
+    },
+    required_readonly_test: {
+      command: options.readonly_test_command,
+      env_to_set_after_pass: options.load_evidence_env,
+      note: "This command uses GET-only ops/status endpoints and must not send TON or mutate payment/refund data."
+    },
+    promotion_rules: [
+      `Do not open ${options.target_stage} until this gate returns safe_to_open_target_stage=true.`,
+      `Run the read-only load ramp first and keep p95 <= ${LOAD_GATE_MAX_P95_MS}ms with failures <= ${LOAD_GATE_MAX_FAILURES}.`,
+      "Stop expansion if rollback stop_now becomes true, failed refunds appear, stale refunds appear, or scanner coverage drops.",
+      "Keep real TON tests separate; this endpoint is only a technical gate."
+    ],
+    checks,
+    blockers_count: uniqueBlockers.length,
+    stage_holds_count: stageHolds.length,
+    evidence_holds_count: evidenceHolds.length,
+    warnings_count: uniqueWarnings.length,
+    blockers: uniqueBlockers,
+    stage_holds: stageHolds,
+    evidence_holds: evidenceHolds,
+    warnings: uniqueWarnings,
+    next_step: uniqueBlockers.length
+      ? "Fix blockers before running any larger load test."
+      : (!stageClean
+        ? `Continue canary ladder until ${options.previous_stage} is clean.`
+        : (!evidenceFresh
+          ? `Run the read-only load test, then set ${options.load_evidence_env} to the passed ISO timestamp before opening ${options.target_stage}.`
+          : `${options.target_stage} can be opened under monitoring.`))
+  };
+}
+
+async function buildLoad10kGateReport(snapshot, dbAudit, orderRefresh) {
+  return buildLoadStageGateReport(snapshot, dbAudit, orderRefresh, {
+    target_stage: "load_10k_gate",
+    previous_stage: "canary_1000",
+    target_users: LOAD_GATE_10K_TARGET_USERS,
+    required_clean_users: CANARY_10000_REQUIRED_CLEAN_USERS,
+    min_scanner_workers: LOAD_GATE_10K_MIN_SCANNER_WORKERS,
+    min_active_shards: Math.min(LOAD_GATE_10K_MIN_SCANNER_WORKERS, getRequiredActiveScannerShards()),
+    max_pending_orders_warning: Math.max(OPS_LOAD_GUARD_MAX_PENDING_ORDERS, LOAD_GATE_10K_TARGET_USERS),
+    load_evidence_env: "LOAD_10K_READONLY_SMOKE_PASSED_AT",
+    readonly_test_command: "node scripts/load-gate-ramp-readonly.cjs --profile 10k"
+  });
+}
+
+async function buildLoad100kGateReport(snapshot, dbAudit, orderRefresh) {
+  return buildLoadStageGateReport(snapshot, dbAudit, orderRefresh, {
+    target_stage: "load_100k_gate",
+    previous_stage: "canary_10000",
+    target_users: LOAD_GATE_100K_TARGET_USERS,
+    required_clean_users: CANARY_100000_REQUIRED_CLEAN_USERS,
+    min_scanner_workers: LOAD_GATE_100K_MIN_SCANNER_WORKERS,
+    min_active_shards: Math.min(LOAD_GATE_100K_MIN_SCANNER_WORKERS, getRequiredActiveScannerShards()),
+    recommended_scanner_workers: LOAD_GATE_100K_RECOMMENDED_SCANNER_WORKERS,
+    max_pending_orders_warning: Math.max(OPS_LOAD_GUARD_MAX_PENDING_ORDERS, LOAD_GATE_100K_TARGET_USERS),
+    load_evidence_env: "LOAD_100K_READONLY_SMOKE_PASSED_AT",
+    readonly_test_command: "node scripts/load-gate-ramp-readonly.cjs --profile 100k"
+  });
+}
+
+async function buildLoadRampCommandCenterReport(snapshot, dbAudit, orderRefresh) {
+  const [load10k, load100k] = await Promise.all([
+    buildLoad10kGateReport(snapshot, dbAudit, orderRefresh),
+    buildLoad100kGateReport(snapshot, dbAudit, orderRefresh)
+  ]);
+  const bigGateBlockedByLoad = !load100k.safe_to_open_target_stage;
+  const bigGateStage = {
+    id: "big_real_test_95_gate",
+    target_users: "final_5_percent",
+    status: bigGateBlockedByLoad ? "locked_until_load_100k_gate" : "verify_dedicated_big_real_test_gate",
+    safe_to_run_readonly_load_test: false,
+    safe_to_open_target_stage: false,
+    blockers_count: bigGateBlockedByLoad ? 0 : 0,
+    holds_count: 1,
+    warnings_count: 0,
+    endpoint: "/ops/big-real-test-95-gate/summary?fresh=true",
+    note: "Kept as a separate heavy final gate so the load ramp command center stays fast."
+  };
+  const stages = [
+    {
+      id: "load_10k_gate",
+      target_users: LOAD_GATE_10K_TARGET_USERS,
+      status: load10k.status,
+      safe_to_run_readonly_load_test: load10k.safe_to_run_readonly_load_test,
+      safe_to_open_target_stage: load10k.safe_to_open_target_stage,
+      blockers_count: load10k.blockers_count,
+      holds_count: load10k.stage_holds_count + load10k.evidence_holds_count,
+      warnings_count: load10k.warnings_count,
+      endpoint: "/ops/load-10k-gate/summary?fresh=true"
+    },
+    {
+      id: "load_100k_gate",
+      target_users: LOAD_GATE_100K_TARGET_USERS,
+      status: load100k.status,
+      safe_to_run_readonly_load_test: load100k.safe_to_run_readonly_load_test,
+      safe_to_open_target_stage: load100k.safe_to_open_target_stage,
+      blockers_count: load100k.blockers_count,
+      holds_count: load100k.stage_holds_count + load100k.evidence_holds_count,
+      warnings_count: load100k.warnings_count,
+      endpoint: "/ops/load-100k-gate/summary?fresh=true"
+    },
+    bigGateStage
+  ];
+  const stopNow = stages.some((stage) => stage.blockers_count > 0);
+  const current = stages.find((stage) => !stage.safe_to_open_target_stage) || stages[stages.length - 1];
+  return {
+    status: stopNow ? "blocked" : (current.id === "big_real_test_95_gate" ? "load_gates_clear_verify_final_gate_separately" : `current_${current.id}`),
+    ok: !stopNow,
+    checked_at: new Date().toISOString(),
+    version: BACKEND_VERSION,
+    load_gate_version: LOAD_GATE_VERSION,
+    stop_now: stopNow,
+    current_stage: current.id,
+    stages,
+    observed: {
+      load_10k: load10k.observed,
+      load_100k: load100k.observed,
+      big_real_test: bigGate.observed
+    },
+    blocker_count: stages.reduce((sum, stage) => sum + Number(stage.blockers_count || 0), 0),
+    warnings_count: stages.reduce((sum, stage) => sum + Number(stage.warnings_count || 0), 0),
+    operator_order: [
+      "Do not run 15-20 real tests yet if they are intentionally deferred.",
+      "Complete canary ladder stages in order.",
+      "Run 10k read-only load gate before 10k traffic.",
+      "Run 100k read-only load gate before 100k traffic.",
+      "Verify the dedicated big-real-test-95 gate separately before the final 5 percent."
+    ],
+    next_step: stopNow
+      ? "Fix blocker before continuing."
+      : (current.safe_to_run_readonly_load_test && !current.safe_to_open_target_stage
+        ? `Run read-only load test for ${current.id}.`
+        : (current.id === "big_real_test_95_gate"
+          ? "Load gates are clear; verify /ops/big-real-test-95-gate/summary separately before the final 5 percent."
+          : `Continue the stage ladder until ${current.id} opens.`))
+  };
+}
+
+async function buildCanaryWaveSupervisorReport(snapshot, dbAudit, orderRefresh) {
+  const [rollback, loadGuard, ladder] = await Promise.all([
+    buildRollbackCommandCenterReport(snapshot, dbAudit, orderRefresh),
+    buildPreCanaryLoadGuardReport(snapshot, dbAudit, orderRefresh),
+    buildCanaryLadderCommandCenterReport(snapshot, dbAudit, orderRefresh)
+  ]);
+  const canary1 = buildCanary1ControlReport(snapshot, dbAudit, orderRefresh);
+  const canary10_20 = await buildCanary10_20ControlReport(snapshot, dbAudit, orderRefresh);
+  const progression = canary10_20.observed?.canary_progression || await buildCanaryProgressionSignal(canary1.selected_controlled_test?.telegram_id, orderRefresh);
+  const blockers = [];
+  const warnings = [];
+  const addBlocker = (name, detail) => blockers.push({ name, ok: false, detail: String(detail) });
+  const addWarning = (name, detail) => warnings.push({ name, ok: false, detail: String(detail) });
+
+  if (rollback.stop_now === true || rollback.ok !== true) addBlocker("rollback_center_not_clear", `status=${rollback.status}, stop_now=${rollback.stop_now}`);
+  if (loadGuard.ok !== true) addBlocker("pre_canary_load_guard_not_clear", `status=${loadGuard.status}`);
+  if (canary1.canary_1_allowed !== true) addBlocker("canary_1_not_allowed", `status=${canary1.status}`);
+  if (canary10_20.ok !== true) addBlocker("canary_10_20_control_blocked", `status=${canary10_20.status}`);
+  if (ladder.ok !== true || ladder.stop_now === true) addBlocker("canary_ladder_not_clear", `status=${ladder.status}, stop_now=${ladder.stop_now}`);
+  if (Number(progression.retry_pending_refunds || 0) > 0) addBlocker("canary_retry_pending_refunds_present", `retry_pending_refunds=${progression.retry_pending_refunds}`);
+  if (Number(progression.failed_refunds || 0) > 0) addBlocker("canary_failed_refunds_present", `failed_refunds=${progression.failed_refunds}`);
+  if (Number(progression.stale_processing_refunds || 0) > 0) addBlocker("canary_stale_processing_refunds_present", `stale_processing_refunds=${progression.stale_processing_refunds}`);
+  if (Number(canary1.observed?.pending_refunds || 0) > 0) addWarning("pending_refunds_watch", `pending_refunds=${canary1.observed.pending_refunds}`);
+  if (Number(rollback.observed?.pending_orders || 0) > 0) addWarning("pending_orders_watch", `pending_orders=${rollback.observed.pending_orders}`);
+
+  const canary1Clean = progression.canary_1_clean === true && canary10_20.canary_1_clean === true;
+  const canary10_20Allowed = blockers.length === 0 && canary10_20.canary_10_20_allowed === true;
+  const phase = blockers.length
+    ? "blocked"
+    : (canary10_20Allowed
+      ? "ready_to_open_canary_10_20"
+      : (canary1.canary_1_allowed ? "run_one_fresh_canary_1_user" : "waiting_for_canary_1"));
+  const stopNow = blockers.length > 0;
+
+  return {
+    status: phase,
+    ok: blockers.length === 0,
+    checked_at: new Date().toISOString(),
+    version: BACKEND_VERSION,
+    no_side_effects: true,
+    real_money_sent_by_this_endpoint: false,
+    stop_now: stopNow,
+    current_stage: phase === "ready_to_open_canary_10_20" ? "canary_10_20" : "canary_1",
+    safe_to_continue_canary_1: blockers.length === 0 && canary1.canary_1_allowed === true,
+    safe_to_open_canary_10_20: canary10_20Allowed,
+    canary_1_clean: canary1Clean,
+    canary_10_20_allowed: canary10_20Allowed,
+    target_batch: {
+      current_required_success_users: CANARY_1_REQUIRED_FRESH_SUCCESS_USERS,
+      next_min_users: CANARY_10_20_TARGET_MIN_USERS,
+      next_max_users: CANARY_10_20_TARGET_MAX_USERS,
+      one_stage_at_a_time: true
+    },
+    observed: {
+      scanner_workers_alive: rollback.observed?.scanner_workers_alive ?? canary10_20.observed?.scanner_workers_alive ?? null,
+      active_shards: rollback.observed?.active_shards ?? canary10_20.observed?.active_shards ?? null,
+      duplicate_shards: rollback.observed?.duplicate_shards || canary10_20.observed?.duplicate_shards || [],
+      available_wallets: rollback.observed?.available_wallets ?? canary10_20.observed?.available_wallets ?? null,
+      remote_signer_wallet_files: rollback.observed?.remote_signer_wallet_files ?? canary10_20.observed?.remote_signer_wallet_files ?? null,
+      pending_orders: rollback.observed?.pending_orders ?? canary10_20.observed?.pending_orders ?? null,
+      active_refunds: rollback.observed?.active_refunds ?? null,
+      failed_refunds_24h: rollback.observed?.failed_refunds_24h ?? canary10_20.observed?.failed_refunds_24h ?? null,
+      stale_processing_refunds_15m: rollback.observed?.stale_processing_refunds_15m ?? canary10_20.observed?.stale_processing_refunds_15m ?? null,
+      canary_progression: progression,
+      rollback_status: rollback.status,
+      load_guard_status: loadGuard.status,
+      ladder_status: ladder.status,
+      canary_1_status: canary1.status,
+      canary_10_20_status: canary10_20.status
+    },
+    wave_plan: [
+      {
+        id: "canary_1",
+        status: canary1.canary_1_allowed ? (canary1Clean ? "clean" : "open_one_fresh_user_only") : "locked",
+        user_limit: 1,
+        pass_condition: "One fresh non-control user confirms deposit and receives approved activation refund after the controlled real test.",
+        verify: "/ops/canary-wave-supervisor/summary?fresh=true"
+      },
+      {
+        id: "canary_10_20",
+        status: canary10_20Allowed ? "allowed" : "locked_until_canary_1_clean",
+        user_limit: `${CANARY_10_20_TARGET_MIN_USERS}-${CANARY_10_20_TARGET_MAX_USERS}`,
+        pass_condition: "10-20 fresh users complete deposit/refund cleanly with failed=0, stale=0, retry_pending=0.",
+        verify: "/ops/canary-10-20-batch-monitor/summary?fresh=true"
+      }
+    ],
+    operator_next_action: blockers.length
+      ? "STOP: fix blockers before continuing canary."
+      : (canary10_20Allowed
+        ? "Open 10-20 fresh users only, then monitor batch endpoint before any 100-user step."
+        : "Run one fresh canary_1 user end-to-end, then re-check this endpoint."),
+    stop_triggers: [
+      "rollback-command-center stop_now=true",
+      "scanner_workers_alive < 64 or active_shards < 64",
+      "duplicate_shards is not empty",
+      "failed_refunds_24h > 0",
+      "stale_processing_refunds_15m > 0",
+      "canary retry_pending_refunds > 0",
+      "remote signer or wallet capacity drops below target"
+    ],
+    blockers_count: blockers.length,
+    warnings_count: warnings.length,
+    blockers,
+    warnings,
+    dependencies: {
+      rollback_command_center: rollback.status,
+      pre_canary_load_guard: loadGuard.status,
+      canary_ladder: ladder.status,
+      canary_1_control: canary1.status,
+      canary_10_20_control: canary10_20.status
+    },
+    next_step: blockers.length
+      ? "Fix blockers and re-check wave supervisor."
+      : (canary10_20Allowed
+        ? "Proceed with 10-20 canary only; do not open canary_100 yet."
+        : "Proceed with exactly one fresh canary_1 user and wait for clean progression signal.")
+  };
+}
+
+async function buildCanary10_20BatchMonitorReport(snapshot, dbAudit, orderRefresh) {
+  const wave = await buildCanaryWaveSupervisorReport(snapshot, dbAudit, orderRefresh);
+  const canary10_20 = await buildCanary10_20ControlReport(snapshot, dbAudit, orderRefresh);
+  const progression = canary10_20.observed?.canary_progression || wave.observed?.canary_progression || {};
+  const matchedUsers = Number(progression.matched_success_users || 0);
+  const targetMin = CANARY_10_20_TARGET_MIN_USERS;
+  const targetMax = CANARY_10_20_TARGET_MAX_USERS;
+  const batchStarted = matchedUsers > 0;
+  const batchCleanFor100 = matchedUsers >= targetMin && Number(progression.failed_refunds || 0) === 0 && Number(progression.stale_processing_refunds || 0) === 0 && Number(progression.retry_pending_refunds || 0) === 0;
+  const blockers = [];
+  const warnings = [];
+  const holds = [];
+  const addBlocker = (name, detail) => blockers.push({ name, ok: false, detail: String(detail) });
+  const addWarning = (name, detail) => warnings.push({ name, ok: false, detail: String(detail) });
+  const addHold = (name, detail) => holds.push({ name, ok: false, detail: String(detail) });
+
+  if (wave.stop_now === true || wave.ok !== true) addBlocker("wave_supervisor_not_clear", `status=${wave.status}, stop_now=${wave.stop_now}`);
+  if (canary10_20.canary_10_20_allowed !== true && !batchStarted) addHold("canary_10_20_not_open_yet", `status=${canary10_20.status}`);
+  if (Number(progression.failed_refunds || 0) > 0) addBlocker("batch_failed_refunds_present", `failed_refunds=${progression.failed_refunds}`);
+  if (Number(progression.stale_processing_refunds || 0) > 0) addBlocker("batch_stale_processing_refunds_present", `stale_processing_refunds=${progression.stale_processing_refunds}`);
+  if (Number(progression.retry_pending_refunds || 0) > 0) addBlocker("batch_retry_pending_refunds_present", `retry_pending_refunds=${progression.retry_pending_refunds}`);
+  if (matchedUsers > targetMax) addWarning("batch_over_target_max_watch", `matched_success_users=${matchedUsers}, max=${targetMax}`);
+  if (matchedUsers > 0 && matchedUsers < targetMin) addWarning("batch_in_progress_under_target_min", `matched_success_users=${matchedUsers}, min=${targetMin}`);
+
+  const status = blockers.length
+    ? "batch_blocked"
+    : (canary10_20.canary_10_20_allowed !== true && !batchStarted
+      ? "waiting_for_canary_10_20_open"
+      : (batchCleanFor100 ? "canary_10_20_clean_ready_for_100_gate" : (batchStarted ? "canary_10_20_in_progress" : "ready_to_start_canary_10_20")));
+
+  return {
+    status,
+    ok: blockers.length === 0,
+    checked_at: new Date().toISOString(),
+    version: BACKEND_VERSION,
+    no_side_effects: true,
+    real_money_sent_by_this_endpoint: false,
+    batch_started: batchStarted,
+    batch_clean_for_canary_100_gate: batchCleanFor100,
+    safe_to_start_10_20: blockers.length === 0 && canary10_20.canary_10_20_allowed === true,
+    safe_to_open_canary_100: blockers.length === 0 && batchCleanFor100,
+    target_batch: {
+      min_users: targetMin,
+      max_users: targetMax,
+      matched_success_users: matchedUsers,
+      remaining_to_min: Math.max(0, targetMin - matchedUsers)
+    },
+    observed: {
+      canary_progression: progression,
+      scanner_workers_alive: canary10_20.observed?.scanner_workers_alive ?? wave.observed?.scanner_workers_alive ?? null,
+      active_shards: canary10_20.observed?.active_shards ?? wave.observed?.active_shards ?? null,
+      duplicate_shards: canary10_20.observed?.duplicate_shards || wave.observed?.duplicate_shards || [],
+      pending_orders: canary10_20.observed?.pending_orders ?? wave.observed?.pending_orders ?? null,
+      failed_refunds_24h: canary10_20.observed?.failed_refunds_24h ?? wave.observed?.failed_refunds_24h ?? null,
+      stale_processing_refunds_15m: canary10_20.observed?.stale_processing_refunds_15m ?? wave.observed?.stale_processing_refunds_15m ?? null
+    },
+    batch_rules: [
+      "Open only 10-20 fresh users in this wave.",
+      "Do not proceed to 100 users until matched_success_users >= 10 and no failed/stale/retry pending refunds exist.",
+      "Pause if any refund is retry pending because signer/RPC/429 can make the batch ambiguous.",
+      "Re-check final-gate, rollback-command-center, and this batch monitor before every promotion."
+    ],
+    blockers_count: blockers.length,
+    holds_count: holds.length,
+    warnings_count: warnings.length,
+    blockers,
+    holds,
+    warnings,
+    next_step: blockers.length
+      ? "Do not continue this batch. Fix blockers and re-check."
+      : (batchCleanFor100
+        ? "10-20 canary is clean. Re-check canary-100-control before any 100-user wave."
+        : (batchStarted
+          ? "Continue watching 10-20 canary until at least 10 matched success users are clean."
+          : "Start 10-20 canary only if the operator intentionally opens this small wave."))
   };
 }
 
@@ -8338,7 +10454,7 @@ app.get("/ops/real-test-readiness", async (req, res) => {
 
 app.get("/ops/real-test-order-refresh", async (req, res) => {
   try {
-    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || "8188152343";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
     const report = await buildRealTestOrderRefreshOpsReport(telegramId);
     res.status(report.status === "blocked" ? 409 : 200).json(report);
   } catch (err) {
@@ -8352,7 +10468,7 @@ app.get("/ops/real-test-order-refresh", async (req, res) => {
 
 app.get("/ops/real-test-order-refresh/summary", async (req, res) => {
   try {
-    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || "8188152343";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
     const report = await buildRealTestOrderRefreshOpsReport(telegramId);
     res.status(report.status === "blocked" ? 409 : 200).json({
       status: report.status,
@@ -8531,11 +10647,13 @@ app.get("/ops/canary-rollout/summary", async (req, res) => {
 app.get("/ops/production-launch-certification", async (req, res) => {
   try {
     const force = req.query?.fresh === "true";
-    const [snapshot, dbAudit] = await Promise.all([
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
       buildOpsSnapshot({ force }),
-      buildDepositRehearsalDbAudit({ force })
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
     ]);
-    const report = buildProductionLaunchCertificationReport(snapshot, dbAudit);
+    const report = buildProductionLaunchCertificationReport(snapshot, dbAudit, orderRefresh);
     res.status(report.status === "blocked" ? 409 : 200).json(report);
   } catch (err) {
     res.status(503).json({
@@ -8549,11 +10667,13 @@ app.get("/ops/production-launch-certification", async (req, res) => {
 app.get("/ops/production-launch-certification/summary", async (req, res) => {
   try {
     const force = req.query?.fresh === "true";
-    const [snapshot, dbAudit] = await Promise.all([
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
       buildOpsSnapshot({ force }),
-      buildDepositRehearsalDbAudit({ force })
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
     ]);
-    const report = buildProductionLaunchCertificationReport(snapshot, dbAudit);
+    const report = buildProductionLaunchCertificationReport(snapshot, dbAudit, orderRefresh);
     res.status(report.status === "blocked" ? 409 : 200).json({
       status: report.status,
       ok: report.ok,
@@ -8581,11 +10701,13 @@ app.get("/ops/production-launch-certification/summary", async (req, res) => {
 app.get("/ops/controlled-real-test-autopilot", async (req, res) => {
   try {
     const force = req.query?.fresh === "true";
-    const [snapshot, dbAudit] = await Promise.all([
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
       buildOpsSnapshot({ force }),
-      buildDepositRehearsalDbAudit({ force })
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
     ]);
-    const report = buildControlledRealTestAutopilotReport(snapshot, dbAudit);
+    const report = buildControlledRealTestAutopilotReport(snapshot, dbAudit, orderRefresh);
     res.status(report.status === "blocked" ? 409 : 200).json(report);
   } catch (err) {
     res.status(503).json({
@@ -8599,11 +10721,13 @@ app.get("/ops/controlled-real-test-autopilot", async (req, res) => {
 app.get("/ops/controlled-real-test-autopilot/summary", async (req, res) => {
   try {
     const force = req.query?.fresh === "true";
-    const [snapshot, dbAudit] = await Promise.all([
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
       buildOpsSnapshot({ force }),
-      buildDepositRehearsalDbAudit({ force })
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
     ]);
-    const report = buildControlledRealTestAutopilotReport(snapshot, dbAudit);
+    const report = buildControlledRealTestAutopilotReport(snapshot, dbAudit, orderRefresh);
     res.status(report.status === "blocked" ? 409 : 200).json({
       status: report.status,
       ok: report.ok,
@@ -8634,7 +10758,7 @@ app.get("/ops/controlled-real-test-autopilot/summary", async (req, res) => {
 app.get("/ops/controlled-real-test-live-watch", async (req, res) => {
   try {
     const force = req.query?.fresh === "true";
-    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || "8188152343";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
     const [snapshot, dbAudit, orderRefresh] = await Promise.all([
       buildOpsSnapshot({ force }),
       buildDepositRehearsalDbAudit({ force }),
@@ -8654,7 +10778,7 @@ app.get("/ops/controlled-real-test-live-watch", async (req, res) => {
 app.get("/ops/controlled-real-test-live-watch/summary", async (req, res) => {
   try {
     const force = req.query?.fresh === "true";
-    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || "8188152343";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
     const [snapshot, dbAudit, orderRefresh] = await Promise.all([
       buildOpsSnapshot({ force }),
       buildDepositRehearsalDbAudit({ force }),
@@ -8697,7 +10821,7 @@ app.get("/ops/controlled-real-test-live-watch/summary", async (req, res) => {
 app.get("/ops/traffic-ramp-command-center", async (req, res) => {
   try {
     const force = req.query?.fresh === "true";
-    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || "8188152343";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
     const [snapshot, dbAudit, orderRefresh] = await Promise.all([
       buildOpsSnapshot({ force }),
       buildDepositRehearsalDbAudit({ force }),
@@ -8717,7 +10841,7 @@ app.get("/ops/traffic-ramp-command-center", async (req, res) => {
 app.get("/ops/traffic-ramp-command-center/summary", async (req, res) => {
   try {
     const force = req.query?.fresh === "true";
-    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || "8188152343";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
     const [snapshot, dbAudit, orderRefresh] = await Promise.all([
       buildOpsSnapshot({ force }),
       buildDepositRehearsalDbAudit({ force }),
@@ -8752,10 +10876,828 @@ app.get("/ops/traffic-ramp-command-center/summary", async (req, res) => {
   }
 });
 
+app.get("/ops/canary-1-control", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
+    ]);
+    const report = buildCanary1ControlReport(snapshot, dbAudit, orderRefresh);
+    res.status(report.ok ? 200 : 409).json(report);
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/canary-1-control/summary", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
+    ]);
+    const report = buildCanary1ControlReport(snapshot, dbAudit, orderRefresh);
+    res.status(report.ok ? 200 : 409).json({
+      status: report.status,
+      ok: report.ok,
+      checked_at: report.checked_at,
+      version: report.version,
+      canary_1_allowed: report.canary_1_allowed,
+      next_allowed_stage: report.next_allowed_stage,
+      selected_controlled_test: report.selected_controlled_test,
+      observed: report.observed,
+      blockers_count: report.blockers.length,
+      warnings_count: report.warnings.length,
+      next_step: report.next_step
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/canary-10-20-control", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
+    ]);
+    const report = await buildCanary10_20ControlReport(snapshot, dbAudit, orderRefresh);
+    res.status(report.status === "blocked" ? 409 : 200).json(report);
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/canary-10-20-control/summary", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
+    ]);
+    const report = await buildCanary10_20ControlReport(snapshot, dbAudit, orderRefresh);
+    res.status(report.status === "blocked" ? 409 : 200).json({
+      status: report.status,
+      ok: report.ok,
+      checked_at: report.checked_at,
+      version: report.version,
+      canary_10_20_allowed: report.canary_10_20_allowed,
+      canary_1_clean: report.canary_1_clean,
+      next_allowed_stage: report.next_allowed_stage,
+      target_batch: report.target_batch,
+      observed: report.observed,
+      blockers_count: report.blockers.length,
+      canary_1_holds_count: report.canary_1_holds.length,
+      warnings_count: report.warnings.length,
+      next_step: report.next_step
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/canary-100-control", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
+    ]);
+    const report = await buildCanary100ControlReport(snapshot, dbAudit, orderRefresh);
+    res.status(report.status === "blocked" ? 409 : 200).json(report);
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/canary-100-control/summary", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
+    ]);
+    const report = await buildCanary100ControlReport(snapshot, dbAudit, orderRefresh);
+    res.status(report.status === "blocked" ? 409 : 200).json({
+      status: report.status,
+      ok: report.ok,
+      checked_at: report.checked_at,
+      version: report.version,
+      target_stage: report.target_stage,
+      previous_stage: report.previous_stage,
+      target_users: report.target_users,
+      required_clean_users: report.required_clean_users,
+      stage_allowed: report.stage_allowed,
+      next_allowed_stage: report.next_allowed_stage,
+      observed: report.observed,
+      blockers_count: report.blockers.length,
+      stage_holds_count: report.stage_holds.length,
+      warnings_count: report.warnings.length,
+      next_step: report.next_step
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/canary-1000-control", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
+    ]);
+    const report = await buildCanary1000ControlReport(snapshot, dbAudit, orderRefresh);
+    res.status(report.status === "blocked" ? 409 : 200).json(report);
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/canary-1000-control/summary", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
+    ]);
+    const report = await buildCanary1000ControlReport(snapshot, dbAudit, orderRefresh);
+    res.status(report.status === "blocked" ? 409 : 200).json({
+      status: report.status,
+      ok: report.ok,
+      checked_at: report.checked_at,
+      version: report.version,
+      target_stage: report.target_stage,
+      previous_stage: report.previous_stage,
+      target_users: report.target_users,
+      required_clean_users: report.required_clean_users,
+      stage_allowed: report.stage_allowed,
+      next_allowed_stage: report.next_allowed_stage,
+      observed: report.observed,
+      blockers_count: report.blockers.length,
+      stage_holds_count: report.stage_holds.length,
+      warnings_count: report.warnings.length,
+      next_step: report.next_step
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+async function serveCanaryStageExpansion(req, res, builder, summaryOnly = false) {
+  try {
+    const force = req.query?.fresh === "true";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
+    ]);
+    const report = await builder(snapshot, dbAudit, orderRefresh);
+    if (!summaryOnly) {
+      return res.status(report.status === "blocked" ? 409 : 200).json(report);
+    }
+    return res.status(report.status === "blocked" ? 409 : 200).json({
+      status: report.status,
+      ok: report.ok,
+      checked_at: report.checked_at,
+      version: report.version,
+      target_stage: report.target_stage,
+      previous_stage: report.previous_stage,
+      target_users: report.target_users,
+      required_clean_users: report.required_clean_users,
+      stage_allowed: report.stage_allowed,
+      next_allowed_stage: report.next_allowed_stage,
+      next_stage_after_this: report.next_stage_after_this,
+      observed: report.observed,
+      blockers_count: report.blockers.length,
+      stage_holds_count: report.stage_holds.length,
+      warnings_count: report.warnings.length,
+      next_step: report.next_step
+    });
+  } catch (err) {
+    return res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+}
+
+app.get("/ops/canary-10000-control", (req, res) => serveCanaryStageExpansion(req, res, buildCanary10000ControlReport, false));
+app.get("/ops/canary-10000-control/summary", (req, res) => serveCanaryStageExpansion(req, res, buildCanary10000ControlReport, true));
+app.get("/ops/canary-100000-control", (req, res) => serveCanaryStageExpansion(req, res, buildCanary100000ControlReport, false));
+app.get("/ops/canary-100000-control/summary", (req, res) => serveCanaryStageExpansion(req, res, buildCanary100000ControlReport, true));
+app.get("/ops/marketing-spike-700k-control", (req, res) => serveCanaryStageExpansion(req, res, buildMarketingSpike700kControlReport, false));
+app.get("/ops/marketing-spike-700k-control/summary", (req, res) => serveCanaryStageExpansion(req, res, buildMarketingSpike700kControlReport, true));
+
+app.get("/ops/canary-ladder-command-center", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
+    ]);
+    const report = await buildCanaryLadderCommandCenterReport(snapshot, dbAudit, orderRefresh);
+    res.status(report.stop_now ? 409 : 200).json(report);
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/canary-ladder-command-center/summary", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
+    ]);
+    const report = await buildCanaryLadderCommandCenterReport(snapshot, dbAudit, orderRefresh);
+    res.status(report.stop_now ? 409 : 200).json({
+      status: report.status,
+      ok: report.ok,
+      checked_at: report.checked_at,
+      version: report.version,
+      stop_now: report.stop_now,
+      next_allowed_stage: report.next_allowed_stage,
+      highest_clean_stage: report.highest_clean_stage,
+      stages: report.stages,
+      observed: report.observed,
+      blockers_count: report.blockers_count,
+      holds_count: report.holds_count,
+      warnings_count: report.warnings_count,
+      next_step: report.next_step
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/rollback-command-center", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
+    ]);
+    const report = await buildRollbackCommandCenterReport(snapshot, dbAudit, orderRefresh);
+    res.status(report.stop_now ? 409 : 200).json(report);
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/rollback-command-center/summary", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
+    ]);
+    const report = await buildRollbackCommandCenterReport(snapshot, dbAudit, orderRefresh);
+    res.status(report.stop_now ? 409 : 200).json({
+      status: report.status,
+      ok: report.ok,
+      checked_at: report.checked_at,
+      version: report.version,
+      stop_now: report.stop_now,
+      next_allowed_stage: report.next_allowed_stage,
+      highest_clean_stage: report.highest_clean_stage,
+      traffic_ramp_status: report.traffic_ramp_status,
+      canary_ladder_status: report.canary_ladder_status,
+      incident_status: report.incident_status,
+      sla_status: report.sla_status,
+      pre_canary_hold_hours: report.pre_canary_hold_hours,
+      observed: report.observed,
+      rollback_triggers_count: report.rollback_triggers_count,
+      warnings_count: report.warnings_count,
+      stop_rules: report.stop_rules,
+      next_step: report.next_step
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/pre-canary-load-guard", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
+    ]);
+    const report = await buildPreCanaryLoadGuardReport(snapshot, dbAudit, orderRefresh);
+    res.status(report.ok ? 200 : 409).json(report);
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/pre-canary-load-guard/summary", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
+    ]);
+    const report = await buildPreCanaryLoadGuardReport(snapshot, dbAudit, orderRefresh);
+    res.status(report.ok ? 200 : 409).json({
+      status: report.status,
+      ok: report.ok,
+      checked_at: report.checked_at,
+      version: report.version,
+      ready_for_next_12h_without_real_test: report.ready_for_next_12h_without_real_test,
+      pre_canary_hold_hours: report.pre_canary_hold_hours,
+      watch_window: report.watch_window,
+      guard_limits: report.guard_limits,
+      observed: report.observed,
+      blockers_count: report.blockers_count,
+      warnings_count: report.warnings_count,
+      next_step: report.next_step
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/operator-shift-handoff", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
+    ]);
+    const report = await buildOperatorShiftHandoffReport(snapshot, dbAudit, orderRefresh);
+    res.status(report.ok ? 200 : 409).json(report);
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/operator-shift-handoff/summary", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
+    ]);
+    const report = await buildOperatorShiftHandoffReport(snapshot, dbAudit, orderRefresh);
+    res.status(report.ok ? 200 : 409).json({
+      status: report.status,
+      ok: report.ok,
+      checked_at: report.checked_at,
+      version: report.version,
+      safe_to_leave_monitoring_on: report.safe_to_leave_monitoring_on,
+      blocker_count: report.blocker_count,
+      warnings_count: report.warnings_count,
+      current_stage: report.current_stage,
+      highest_clean_stage: report.highest_clean_stage,
+      pre_canary_hold_hours: report.pre_canary_hold_hours,
+      operator_do_now: report.operator_do_now,
+      do_not_do: report.do_not_do,
+      watch_endpoints: report.watch_endpoints,
+      rollback_summary: report.rollback_summary,
+      load_guard_summary: report.load_guard_summary,
+      next_step: report.next_step
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/big-real-test-95-gate", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
+    ]);
+    const report = await buildBigRealTest95GateReport(snapshot, dbAudit, orderRefresh);
+    res.status(report.blockers_count > 0 ? 409 : 200).json(report);
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/big-real-test-95-gate/summary", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
+    ]);
+    const report = await buildBigRealTest95GateReport(snapshot, dbAudit, orderRefresh);
+    res.status(report.blockers_count > 0 ? 409 : 200).json({
+      status: report.status,
+      ok: report.ok,
+      checked_at: report.checked_at,
+      version: report.version,
+      ready_for_big_real_test_final_5_percent: report.ready_for_big_real_test_final_5_percent,
+      big_real_test_locked_until_95_percent_done: report.big_real_test_locked_until_95_percent_done,
+      pre_big_real_test_completion_percent: report.pre_big_real_test_completion_percent,
+      current_required_stage: report.current_required_stage,
+      next_allowed_stage: report.next_allowed_stage,
+      clean_stage_count: report.clean_stage_count,
+      required_clean_stage_count: report.required_clean_stage_count,
+      observed: report.observed,
+      blockers_count: report.blockers_count,
+      warnings_count: report.warnings_count,
+      stop_rules: report.stop_rules,
+      verify_before_big_real_test: report.verify_before_big_real_test,
+      next_step: report.next_step
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/public-launch-stage-timeline", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
+    ]);
+    const report = await buildPublicLaunchStageTimelineReport(snapshot, dbAudit, orderRefresh);
+    res.status(report.blockers_count > 0 ? 409 : 200).json(report);
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/public-launch-stage-timeline/summary", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
+    ]);
+    const report = await buildPublicLaunchStageTimelineReport(snapshot, dbAudit, orderRefresh);
+    res.status(report.blockers_count > 0 ? 409 : 200).json({
+      status: report.status,
+      ok: report.ok,
+      checked_at: report.checked_at,
+      version: report.version,
+      completion_percent_before_big_real_test: report.completion_percent_before_big_real_test,
+      current_required_stage: report.current_required_stage,
+      ready_for_big_real_test_final_5_percent: report.ready_for_big_real_test_final_5_percent,
+      blockers_count: report.blockers_count,
+      warnings_count: report.warnings_count,
+      timeline: report.timeline,
+      observed: report.observed,
+      next_step: report.next_step
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+async function serveLoadGate(req, res, builder, summary = false) {
+  try {
+    const force = req.query?.fresh === "true";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
+    ]);
+    const report = await builder(snapshot, dbAudit, orderRefresh);
+    const statusCode = report.blockers_count > 0 ? 409 : 200;
+    if (!summary) return res.status(statusCode).json(report);
+    return res.status(statusCode).json({
+      status: report.status,
+      ok: report.ok,
+      checked_at: report.checked_at,
+      version: report.version,
+      load_gate_version: report.load_gate_version,
+      target_stage: report.target_stage,
+      previous_stage: report.previous_stage,
+      target_users: report.target_users,
+      required_clean_users: report.required_clean_users,
+      safe_to_run_readonly_load_test: report.safe_to_run_readonly_load_test,
+      safe_to_open_target_stage: report.safe_to_open_target_stage,
+      read_only_load_evidence: report.read_only_load_evidence,
+      thresholds: report.thresholds,
+      observed: report.observed,
+      required_readonly_test: report.required_readonly_test,
+      blockers_count: report.blockers_count,
+      stage_holds_count: report.stage_holds_count,
+      evidence_holds_count: report.evidence_holds_count,
+      warnings_count: report.warnings_count,
+      next_step: report.next_step
+    });
+  } catch (err) {
+    return res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      load_gate_version: LOAD_GATE_VERSION,
+      error: err.message
+    });
+  }
+}
+
+app.get("/ops/load-10k-gate", (req, res) => serveLoadGate(req, res, buildLoad10kGateReport, false));
+app.get("/ops/load-10k-gate/summary", (req, res) => serveLoadGate(req, res, buildLoad10kGateReport, true));
+app.get("/ops/load-100k-gate", (req, res) => serveLoadGate(req, res, buildLoad100kGateReport, false));
+app.get("/ops/load-100k-gate/summary", (req, res) => serveLoadGate(req, res, buildLoad100kGateReport, true));
+
+app.get("/ops/load-ramp-command-center", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
+    ]);
+    const report = await buildLoadRampCommandCenterReport(snapshot, dbAudit, orderRefresh);
+    res.status(report.stop_now ? 409 : 200).json(report);
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      load_gate_version: LOAD_GATE_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/load-ramp-command-center/summary", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
+    ]);
+    const report = await buildLoadRampCommandCenterReport(snapshot, dbAudit, orderRefresh);
+    res.status(report.stop_now ? 409 : 200).json({
+      status: report.status,
+      ok: report.ok,
+      checked_at: report.checked_at,
+      version: report.version,
+      load_gate_version: report.load_gate_version,
+      stop_now: report.stop_now,
+      current_stage: report.current_stage,
+      stages: report.stages,
+      blocker_count: report.blocker_count,
+      warnings_count: report.warnings_count,
+      operator_order: report.operator_order,
+      next_step: report.next_step
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      load_gate_version: LOAD_GATE_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/canary-wave-supervisor", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
+    ]);
+    const report = await buildCanaryWaveSupervisorReport(snapshot, dbAudit, orderRefresh);
+    res.status(report.stop_now ? 409 : 200).json(report);
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/canary-wave-supervisor/summary", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
+    ]);
+    const report = await buildCanaryWaveSupervisorReport(snapshot, dbAudit, orderRefresh);
+    res.status(report.stop_now ? 409 : 200).json({
+      status: report.status,
+      ok: report.ok,
+      checked_at: report.checked_at,
+      version: report.version,
+      stop_now: report.stop_now,
+      current_stage: report.current_stage,
+      safe_to_continue_canary_1: report.safe_to_continue_canary_1,
+      safe_to_open_canary_10_20: report.safe_to_open_canary_10_20,
+      canary_1_clean: report.canary_1_clean,
+      canary_10_20_allowed: report.canary_10_20_allowed,
+      target_batch: report.target_batch,
+      observed: report.observed,
+      wave_plan: report.wave_plan,
+      operator_next_action: report.operator_next_action,
+      stop_triggers: report.stop_triggers,
+      blockers_count: report.blockers_count,
+      warnings_count: report.warnings_count,
+      dependencies: report.dependencies,
+      next_step: report.next_step
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/canary-10-20-batch-monitor", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
+    ]);
+    const report = await buildCanary10_20BatchMonitorReport(snapshot, dbAudit, orderRefresh);
+    res.status(report.ok ? 200 : 409).json(report);
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
+app.get("/ops/canary-10-20-batch-monitor/summary", async (req, res) => {
+  try {
+    const force = req.query?.fresh === "true";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
+    const [snapshot, dbAudit, orderRefresh] = await Promise.all([
+      buildOpsSnapshot({ force }),
+      buildDepositRehearsalDbAudit({ force }),
+      buildRealTestOrderRefreshOpsReport(telegramId)
+    ]);
+    const report = await buildCanary10_20BatchMonitorReport(snapshot, dbAudit, orderRefresh);
+    res.status(report.ok ? 200 : 409).json({
+      status: report.status,
+      ok: report.ok,
+      checked_at: report.checked_at,
+      version: report.version,
+      batch_started: report.batch_started,
+      batch_clean_for_canary_100_gate: report.batch_clean_for_canary_100_gate,
+      safe_to_start_10_20: report.safe_to_start_10_20,
+      safe_to_open_canary_100: report.safe_to_open_canary_100,
+      target_batch: report.target_batch,
+      observed: report.observed,
+      batch_rules: report.batch_rules,
+      blockers_count: report.blockers_count,
+      holds_count: report.holds_count,
+      warnings_count: report.warnings_count,
+      next_step: report.next_step
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: "not_ready",
+      version: BACKEND_VERSION,
+      error: err.message
+    });
+  }
+});
+
 app.get("/ops/pre-real-test-tomorrow-gate", async (req, res) => {
   try {
     const force = req.query?.fresh === "true";
-    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || "8188152343";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
     const [snapshot, dbAudit, orderRefresh] = await Promise.all([
       buildOpsSnapshot({ force }),
       buildDepositRehearsalDbAudit({ force }),
@@ -8775,7 +11717,7 @@ app.get("/ops/pre-real-test-tomorrow-gate", async (req, res) => {
 app.get("/ops/pre-real-test-tomorrow-gate/summary", async (req, res) => {
   try {
     const force = req.query?.fresh === "true";
-    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || "8188152343";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
     const [snapshot, dbAudit, orderRefresh] = await Promise.all([
       buildOpsSnapshot({ force }),
       buildDepositRehearsalDbAudit({ force }),
@@ -8813,7 +11755,7 @@ app.get("/ops/pre-real-test-tomorrow-gate/summary", async (req, res) => {
 app.get("/ops/non-real-test-completion-gate", async (req, res) => {
   try {
     const force = req.query?.fresh === "true";
-    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || "8188152343";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
     const [snapshot, dbAudit, orderRefresh] = await Promise.all([
       buildOpsSnapshot({ force }),
       buildDepositRehearsalDbAudit({ force }),
@@ -8833,7 +11775,7 @@ app.get("/ops/non-real-test-completion-gate", async (req, res) => {
 app.get("/ops/non-real-test-completion-gate/summary", async (req, res) => {
   try {
     const force = req.query?.fresh === "true";
-    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || "8188152343";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
     const [snapshot, dbAudit, orderRefresh] = await Promise.all([
       buildOpsSnapshot({ force }),
       buildDepositRehearsalDbAudit({ force }),
@@ -8870,7 +11812,7 @@ app.get("/ops/non-real-test-completion-gate/summary", async (req, res) => {
 app.get("/ops/post-real-test-canary-gate", async (req, res) => {
   try {
     const force = req.query?.fresh === "true";
-    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || "8188152343";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
     const [snapshot, dbAudit, orderRefresh] = await Promise.all([
       buildOpsSnapshot({ force }),
       buildDepositRehearsalDbAudit({ force }),
@@ -8890,7 +11832,7 @@ app.get("/ops/post-real-test-canary-gate", async (req, res) => {
 app.get("/ops/post-real-test-canary-gate/summary", async (req, res) => {
   try {
     const force = req.query?.fresh === "true";
-    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || "8188152343";
+    const telegramId = req.query?.telegram_id || req.query?.telegramId || req.query?.user || DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID;
     const [snapshot, dbAudit, orderRefresh] = await Promise.all([
       buildOpsSnapshot({ force }),
       buildDepositRehearsalDbAudit({ force }),
@@ -9931,12 +12873,6 @@ app.post("/withdraw/request", async (req, res) => {
     if (userError) return res.status(500).json(userError);
     if (user.is_blocked) return res.status(403).json({ error: "User bloklangan" });
 
-    if (!user.withdraw_unlocked) {
-      return res.status(403).json({
-        error: `Pul yechish uchun avval ${PAYMENT_AMOUNT_TON} TONCOIN aktivatsiya to'lovini amalga oshirish kerak`
-      });
-    }
-
     if (!isLikelyTonAddress(wallet_address)) {
       return res.status(400).json({
         error: "TON hamyon address noto'g'ri. EQ..., UQ... yoki 0:... formatini kiriting."
@@ -9945,9 +12881,15 @@ app.post("/withdraw/request", async (req, res) => {
 
     const refundAmount = Number(ACTIVATION_REFUND_TON);
     const isDepositRefund = withdrawScope === "deposit_refund";
+    const activationDepositVerified = await hasConfirmedActivationDeposit(telegramId, user);
     let amount = requestedAmount;
 
     if (isDepositRefund) {
+      if (!activationDepositVerified) {
+        return res.status(403).json({
+          error: `Aktivatsiya depozitini qaytarish uchun avval ${PAYMENT_AMOUNT_TON} TONCOIN to'lov tasdiqlanishi kerak`
+        });
+      }
       if (Math.abs(requestedAmount - refundAmount) > 0.000001) {
         return res.status(400).json({
           error: `Faqat aktivatsiya depoziti ${refundAmount.toFixed(2)} TONCOIN yechiladi`
@@ -9955,10 +12897,10 @@ app.post("/withdraw/request", async (req, res) => {
       }
       const { data: existingRefundWithdraw, error: existingRefundError } = await supabase
         .from("withdraws")
-        .select("id,status")
+        .select("*")
         .eq("telegram_id", telegramId)
         .eq("wallet_type", "TON_DEPOSIT_REFUND")
-        .in("status", ["pending", "processing", "approved", "paid", "auto_paid", "submitted", "submitted_unconfirmed"])
+        .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
 
@@ -9966,12 +12908,64 @@ app.post("/withdraw/request", async (req, res) => {
         return res.status(500).json(existingRefundError);
       }
       if (existingRefundWithdraw) {
+        const reconciledRefund = await reconcileDepositRefundWithdrawFromChain(existingRefundWithdraw).catch((err) => {
+          console.warn("[withdraw] deposit refund reconciliation skipped:", err.message || String(err));
+          return null;
+        });
+        const effectiveRefund = reconciledRefund?.withdraw || existingRefundWithdraw;
+        const effectiveStatus = String(effectiveRefund.status || "");
+        const terminalOrActiveRefund = [
+          "pending",
+          "processing",
+          "approved",
+          "paid",
+          "auto_paid",
+          "submitted",
+          "submitted_unconfirmed"
+        ].includes(effectiveStatus);
+        const potentiallySubmittedFailure = isPotentialTonPayoutSubmissionError(effectiveRefund.admin_note || "");
+
+        if (terminalOrActiveRefund || potentiallySubmittedFailure) {
+          return res.json({
+            status: reconciledRefund ? "withdraw_chain_reconciled" : "withdraw_already_requested",
+            amount: Number(effectiveRefund.amount || refundAmount),
+            commission_amount: Number(Math.max(0, Number(effectiveRefund.amount || refundAmount) - Number(ACTIVATION_PAYOUT_TON)).toFixed(2)),
+            payout_amount: Number(ACTIVATION_PAYOUT_TON),
+            auto_payout_enabled: TON_AUTO_PAYOUT_ENABLED,
+            auto_payout_status: reconciledRefund ? "chain_reconciled" : effectiveStatus,
+            auto_payout: {
+              ...getTonAutoPayoutStatusSummary(),
+              status: reconciledRefund ? "chain_reconciled" : effectiveStatus,
+              chain_reconciliation: reconciledRefund ? {
+                observed_amount_ton: reconciledRefund.transfer.observed_amount_ton,
+                expected_amount_ton: Number(ACTIVATION_PAYOUT_TON),
+                exact_amount_match: reconciledRefund.transfer.exact_amount_match,
+                tx_hash: reconciledRefund.transfer.transaction_hash || reconciledRefund.transfer.hash || null
+              } : null
+            },
+            withdraw: effectiveRefund,
+            deposit_refund: normalizeDepositRefundStatus(effectiveRefund),
+            activation_deposit_verified: activationDepositVerified,
+            deposit_refund_available: activationDepositVerified,
+            main_withdraw_unlocked: Boolean(user?.withdraw_unlocked),
+            user,
+            growth_lock: await getGrowthLockStatus(user)
+          });
+        }
+
         return res.status(409).json({
-          error: "Aktivatsiya depozitini yechish so'rovi allaqachon yaratilgan"
+          error: "Aktivatsiya depozitini yechish so'rovi oldin rad etilgan. Qayta urinishdan oldin admin tekshiruvi kerak.",
+          withdraw: effectiveRefund,
+          deposit_refund: normalizeDepositRefundStatus(effectiveRefund)
         });
       }
       amount = refundAmount;
     } else {
+      if (!user.withdraw_unlocked) {
+        return res.status(403).json({
+          error: "Asosiy balans hali qulflangan. Pul yechish vaqti va shartlari bajarilganda ochiladi."
+        });
+      }
       const withdrawWindow = getWithdrawWindowStatus(settings);
       const growthLock = await getGrowthLockStatus(user);
       if (!withdrawWindow.is_open) {
@@ -9994,7 +12988,7 @@ app.post("/withdraw/request", async (req, res) => {
       });
     }
 
-    if (Number(user.balance) < amount) {
+    if (!isDepositRefund && Number(user.balance) < amount) {
       return res.status(400).json({ error: "Balans yetarli emas" });
     }
 
@@ -10055,31 +13049,45 @@ app.post("/withdraw/request", async (req, res) => {
             payout: autoPayoutResult.payout,
             source_order: autoPayoutResult.source_order
           };
-          try {
-            await debitUserBalance();
-          } catch (debitError) {
-            await markWithdrawAutoPayoutError(withdraw.id, `Balance debit failed after payout: ${debitError.message}`);
-            autoPayout.balance_debit_error = debitError.message;
-          }
         } catch (autoPayoutError) {
-          const rejectedWithdraw = await markWithdrawAutoPayoutError(
-            withdraw.id,
-            autoPayoutError.message,
-            autoPayoutError.payoutSubmitted ? { status: "processing" } : { status: "rejected" }
-          );
-          if (rejectedWithdraw) withdrawResult = rejectedWithdraw;
-          autoPayout = {
-            ...autoPayout,
-            status: autoPayoutError.payoutSubmitted ? "submitted_unconfirmed" : "failed",
-            error: autoPayoutError.message
-          };
-          if (autoPayoutError.payoutSubmitted) {
-            try {
-              await debitUserBalance();
-            } catch (debitError) {
-              await markWithdrawAutoPayoutError(withdraw.id, `Balance debit failed after submitted payout: ${debitError.message}`, { status: "processing" });
-              autoPayout.balance_debit_error = debitError.message;
-            }
+          const reconciledRefund = await reconcileDepositRefundWithdrawFromChain(withdraw).catch((err) => {
+            console.warn("[withdraw] auto payout reconciliation after error skipped:", err.message || String(err));
+            return null;
+          });
+          if (reconciledRefund) {
+            withdrawResult = reconciledRefund.withdraw;
+            autoPayout = {
+              ...autoPayout,
+              status: "chain_reconciled",
+              payout: {
+                source_wallet_address: reconciledRefund.source_order?.wallet_address || null,
+                destination_wallet_address: withdraw.wallet_address,
+                amount_ton: reconciledRefund.transfer.observed_amount_ton,
+                expected_amount_ton: Number(ACTIVATION_PAYOUT_TON),
+                exact_amount_match: reconciledRefund.transfer.exact_amount_match,
+                tx_hash: reconciledRefund.transfer.transaction_hash || reconciledRefund.transfer.hash || null
+              },
+              source_order: reconciledRefund.source_order
+            };
+          } else {
+            const maybeSubmitted = isPotentialTonPayoutSubmissionError(autoPayoutError);
+            const retryablePayout = !maybeSubmitted && isRetryableTonPayoutError(autoPayoutError);
+            const failedWithdraw = await markWithdrawAutoPayoutError(
+              withdraw.id,
+              autoPayoutError.message,
+              maybeSubmitted
+                ? { status: "submitted_unconfirmed", label: "Auto payout submitted but confirmation pending" }
+                : retryablePayout
+                  ? { status: "pending", label: "Auto payout retry pending" }
+                  : { status: "rejected" }
+            );
+            if (failedWithdraw) withdrawResult = failedWithdraw;
+            autoPayout = {
+              ...autoPayout,
+              status: maybeSubmitted ? "submitted_unconfirmed" : retryablePayout ? "retry_pending" : "failed",
+              retryable: retryablePayout,
+              error: autoPayoutError.message
+            };
           }
         }
       } else {
@@ -10087,8 +13095,12 @@ app.post("/withdraw/request", async (req, res) => {
           ...autoPayout,
           status: autoPayout.signer_ready ? "disabled" : "signer_not_ready"
         };
-        await debitUserBalance();
       }
+    } else if (isDepositRefund) {
+      autoPayout = {
+        ...autoPayout,
+        status: "manual_pending"
+      };
     } else {
       await debitUserBalance();
     }
@@ -10103,6 +13115,9 @@ app.post("/withdraw/request", async (req, res) => {
       auto_payout: autoPayout,
       withdraw: withdrawResult,
       deposit_refund: normalizeDepositRefundStatus(withdrawResult),
+      activation_deposit_verified: activationDepositVerified,
+      deposit_refund_available: activationDepositVerified,
+      main_withdraw_unlocked: Boolean(updatedUser?.withdraw_unlocked),
       user: updatedUser,
       growth_lock: await getGrowthLockStatus(updatedUser)
     });
@@ -10696,13 +13711,47 @@ app.post("/admin/withdraw/:id/auto-payout", requireAdmin, async (req, res) => {
       withdraw: result.withdraw
     });
   } catch (err) {
+    const { data: failedWithdraw } = await supabase
+      .from("withdraws")
+      .select("*")
+      .eq("id", req.params.id)
+      .maybeSingle();
+    const reconciledRefund = failedWithdraw
+      ? await reconcileDepositRefundWithdrawFromChain(failedWithdraw).catch((reconcileErr) => {
+        console.warn("[admin] auto payout reconciliation after error skipped:", reconcileErr.message || String(reconcileErr));
+        return null;
+      })
+      : null;
+    if (reconciledRefund) {
+      return res.status(200).json({
+        status: "chain_reconciled",
+        auto_payout: {
+          status: "chain_reconciled",
+          payout: {
+            amount_ton: reconciledRefund.transfer.observed_amount_ton,
+            expected_amount_ton: Number(ACTIVATION_PAYOUT_TON),
+            exact_amount_match: reconciledRefund.transfer.exact_amount_match,
+            tx_hash: reconciledRefund.transfer.transaction_hash || reconciledRefund.transfer.hash || null
+          },
+          source_order: reconciledRefund.source_order
+        },
+        withdraw: reconciledRefund.withdraw
+      });
+    }
+    const maybeSubmitted = isPotentialTonPayoutSubmissionError(err);
+    const retryablePayout = !maybeSubmitted && isRetryableTonPayoutError(err);
     const updatedWithdraw = await markWithdrawAutoPayoutError(
       req.params.id,
       err.message,
-      err.payoutSubmitted ? { status: "processing" } : {}
+      maybeSubmitted
+        ? { status: "submitted_unconfirmed", label: "Auto payout submitted but confirmation pending" }
+        : retryablePayout
+          ? { status: "pending", label: "Auto payout retry pending" }
+          : {}
     );
-    res.status(err.payoutSubmitted ? 202 : 500).json({
-      status: err.payoutSubmitted ? "submitted_unconfirmed" : "failed",
+    res.status(maybeSubmitted || retryablePayout ? 202 : 500).json({
+      status: maybeSubmitted ? "submitted_unconfirmed" : retryablePayout ? "retry_pending" : "failed",
+      retryable: retryablePayout,
       error: err.message,
       withdraw: updatedWithdraw
     });
@@ -11016,6 +14065,27 @@ app.post("/admin/payment-orders/:id/approve", requireAdmin, async (req, res) => 
   }
 });
 
+app.post("/admin/payment-orders/:id/rescue-ton-deposit", requireAdmin, async (req, res) => {
+  try {
+    const result = await rescueTonDepositForPaymentOrder({
+      orderId: req.params.id,
+      telegramId: req.body?.telegram_id,
+      walletAddress: req.body?.wallet_address || req.body?.deposit_wallet_address,
+      txHash: req.body?.tx_hash
+    });
+
+    res.json({
+      status: result.rescued ? "rescued" : "not_changed",
+      ...result
+    });
+  } catch (err) {
+    res.status(400).json({
+      status: "rescue_failed",
+      error: err.message
+    });
+  }
+});
+
 app.post("/admin/notification/send", requireAdmin, async (req, res) => {
   const missing = requireFields(req.body, ["title", "message"]);
   if (missing) return res.status(400).json({ error: missing });
@@ -11159,10 +14229,14 @@ app.post("/payment/create", async (req, res) => {
 
     const { data: user } = await findUserByTelegramId(telegram_id);
     const depositRefund = normalizeDepositRefundStatus(await getDepositRefundWithdraw(telegram_id).catch(() => null));
-    if (user?.withdraw_unlocked) {
+    const activationDepositVerified = await hasConfirmedActivationDeposit(telegram_id, user).catch(() => Boolean(user?.withdraw_payment_verified_at));
+    if (activationDepositVerified || user?.withdraw_unlocked) {
       const order = await findPersistentUserPaymentOrder(telegram_id);
       return res.json({
-        withdraw_unlocked: true,
+        withdraw_unlocked: Boolean(user?.withdraw_unlocked),
+        main_withdraw_unlocked: Boolean(user?.withdraw_unlocked),
+        activation_deposit_verified: activationDepositVerified,
+        deposit_refund_available: activationDepositVerified,
         order,
         orders: order ? [order] : [],
         deposit_refund: depositRefund,
@@ -11202,6 +14276,9 @@ app.post("/payment/create", async (req, res) => {
       : (await findPersistentUserPaymentOrder(telegram_id)) || createdOrder;
     res.json({
       withdraw_unlocked: false,
+      main_withdraw_unlocked: false,
+      activation_deposit_verified: false,
+      deposit_refund_available: false,
       order,
       orders: order ? [order] : [],
       deposit_refund: depositRefund,
@@ -11247,7 +14324,14 @@ app.post("/payment/check", async (req, res) => {
     if (error) throw error;
     if (!order) return res.status(404).json({ error: "Order topilmadi" });
 
-    const confirmed = order.status === "pending" ? await scanPaymentOrder(order) : order.status === "confirmed";
+    const extraWalletAddresses = [
+      req.body?.wallet_address,
+      req.body?.deposit_wallet_address,
+      req.body?.displayed_wallet_address
+    ].filter(Boolean);
+    const confirmed = order.status === "pending"
+      ? await scanPaymentOrder(order, { extraWalletAddresses })
+      : order.status === "confirmed";
     const { data: user } = await findUserByTelegramId(telegram_id);
     const { data: latestOrder } = await supabase
       .from("payment_orders")
@@ -11255,10 +14339,15 @@ app.post("/payment/check", async (req, res) => {
       .eq("id", order_id)
       .maybeSingle();
 
+    const activationDepositVerified = await hasConfirmedActivationDeposit(telegram_id, user).catch(() => Boolean(user?.withdraw_payment_verified_at));
+
     res.json({
       checked: true,
       confirmed,
       withdraw_unlocked: Boolean(user?.withdraw_unlocked),
+      main_withdraw_unlocked: Boolean(user?.withdraw_unlocked),
+      activation_deposit_verified: activationDepositVerified || confirmed,
+      deposit_refund_available: activationDepositVerified || confirmed,
       order: normalizePaymentOrder(latestOrder || order),
       user,
       deposit_refund: normalizeDepositRefundStatus(await getDepositRefundWithdraw(telegram_id).catch(() => null)),
@@ -11290,11 +14379,10 @@ app.get("/payment/status/:telegram_id", async (req, res) => {
     if (error && error.code !== "42P01") throw error;
 
     const statusNow = new Date();
+    const activationDepositVerified = await hasConfirmedActivationDeposit(telegram_id, user).catch(() => Boolean(user?.withdraw_payment_verified_at));
     let normalizedOrders = sortPaymentOrdersForClient((orders || []).map(normalizePaymentOrder), statusNow);
-    const hasFreshPendingWallet = normalizedOrders.some((order) =>
-      order.wallet_address && isFreshPendingPaymentOrder(order, statusNow)
-    );
-    if (!hasFreshPendingWallet && user && !user.withdraw_unlocked && Number(user.balance || 0) >= WALLET_UNLOCK_REQUIRED_USD) {
+    const activationPaymentRequired = Boolean(user && !activationDepositVerified && Number(user.balance || 0) >= WALLET_UNLOCK_REQUIRED_USD);
+    if (activationPaymentRequired) {
       try {
         const ensuredOrder = await createTonPaymentOrder(telegram_id);
         if (ensuredOrder?.wallet_address) {
@@ -11322,6 +14410,9 @@ app.get("/payment/status/:telegram_id", async (req, res) => {
 
     res.json({
       withdraw_unlocked: user?.withdraw_unlocked || false,
+      main_withdraw_unlocked: Boolean(user?.withdraw_unlocked),
+      activation_deposit_verified: activationDepositVerified,
+      deposit_refund_available: activationDepositVerified,
       wallet_locked: Number(user?.balance || 0) < WALLET_UNLOCK_REQUIRED_USD,
       wallet_unlock_required_amount: WALLET_UNLOCK_REQUIRED_USD,
       wallet_earning_amount: Number(user?.balance || 0),
