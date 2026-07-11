@@ -8990,19 +8990,32 @@ function buildReadOnlyLoadEvidenceStatus(envName) {
 }
 
 async function buildLoadStageGateReport(snapshot, dbAudit, orderRefresh, options) {
-  const progression = await buildCanaryProgressionSignal(DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID, orderRefresh);
-  const scannerWorkersAlive = Number(snapshot?.scanner?.scanner_workers_alive || snapshot?.shards?.scanner_workers_alive || 0);
-  const activeShards = Number(snapshot?.shards?.active_shards || 0);
-  const duplicateShards = Array.isArray(snapshot?.shards?.duplicate_shards) ? snapshot.shards.duplicate_shards : [];
-  const availableWallets = Number(snapshot?.wallet_capacity?.counts?.available_wallets?.count || 0);
-  const remoteSignerWalletFiles = Number(snapshot?.ton_signer?.remote_signer?.wallet_files || 0);
-  const pendingOrders = Number(snapshot?.backlog?.counts?.pending_orders?.count || dbAudit?.counts?.pending_orders_total?.count || 0);
-  const activeRefunds = Number(dbAudit?.counts?.deposit_refund_withdraws_active?.count || 0);
-  const pendingRefunds = Number(progression.pending_refunds || dbAudit?.counts?.deposit_refund_withdraws_pending?.count || 0);
-  const processingRefunds = Number(progression.processing_refunds || dbAudit?.counts?.deposit_refund_withdraws_processing?.count || 0);
+  const [
+    rollback,
+    loadGuard,
+    ladder,
+    stageReport
+  ] = await Promise.all([
+    buildRollbackCommandCenterReport(snapshot, dbAudit, orderRefresh),
+    buildPreCanaryLoadGuardReport(snapshot, dbAudit, orderRefresh),
+    buildCanaryLadderCommandCenterReport(snapshot, dbAudit, orderRefresh),
+    options.stage_report_builder(snapshot, dbAudit, orderRefresh)
+  ]);
+  const progression = stageReport.observed?.canary_progression || await buildCanaryProgressionSignal(DEFAULT_CONTROLLED_REAL_TEST_TELEGRAM_ID, orderRefresh);
+  const scannerWorkersAlive = Number(stageReport.observed?.scanner_workers_alive ?? rollback.observed?.scanner_workers_alive ?? 0);
+  const activeShards = Number(stageReport.observed?.active_shards ?? rollback.observed?.active_shards ?? 0);
+  const duplicateShards = Array.isArray(stageReport.observed?.duplicate_shards)
+    ? stageReport.observed.duplicate_shards
+    : (Array.isArray(rollback.observed?.duplicate_shards) ? rollback.observed.duplicate_shards : []);
+  const availableWallets = Number(stageReport.observed?.available_wallets ?? rollback.observed?.available_wallets ?? 0);
+  const remoteSignerWalletFiles = Number(stageReport.observed?.remote_signer_wallet_files ?? rollback.observed?.remote_signer_wallet_files ?? 0);
+  const pendingOrders = Number(stageReport.observed?.pending_orders ?? rollback.observed?.pending_orders ?? 0);
+  const activeRefunds = Number(rollback.observed?.active_refunds ?? 0);
+  const pendingRefunds = Number(progression.pending_refunds ?? rollback.observed?.pending_refunds ?? 0);
+  const processingRefunds = Number(progression.processing_refunds ?? rollback.observed?.processing_refunds ?? 0);
   const retryPendingRefunds = Number(progression.retry_pending_refunds || 0);
-  const failedRefunds = Number(progression.failed_refunds || dbAudit?.counts?.deposit_refund_withdraws_failed_24h?.count || 0);
-  const staleRefunds = Number(progression.stale_processing_refunds || dbAudit?.counts?.deposit_refund_withdraws_processing_stale_15m?.count || 0);
+  const failedRefunds = Number(progression.failed_refunds || rollback.observed?.failed_refunds_24h || 0);
+  const staleRefunds = Number(progression.stale_processing_refunds || rollback.observed?.stale_processing_refunds_15m || 0);
   const matchedSuccessUsers = Number(progression.matched_success_users || 0);
   const remoteConfirmedRefundUsers = Number(progression.fresh_remote_confirmed_refund_users || 0);
   const evidence = buildReadOnlyLoadEvidenceStatus(options.load_evidence_env);
@@ -9010,9 +9023,9 @@ async function buildLoadStageGateReport(snapshot, dbAudit, orderRefresh, options
   const add = (name, ok, detail, severity = "blocker") => checks.push({ name, ok: Boolean(ok), detail: String(detail), severity });
 
   add("final_gate_ready", snapshot?.gate?.status === "ready", `final_gate=${snapshot?.gate?.status || "unknown"}`, "blocker");
-  add("redis_ready", snapshot?.redis?.ok === true, `redis=${snapshot?.redis?.message || snapshot?.redis?.backend || "unknown"}`, "blocker");
-  add("redis_deep_ready", snapshot?.redis_deep?.ok === true, `redis_deep=${snapshot?.redis_deep?.message || "unknown"}`, "blocker");
-  add("ton_signer_ready", snapshot?.ton_signer?.ok === true, `remote_files=${remoteSignerWalletFiles}`, "blocker");
+  add("rollback_center_clear", rollback.ok === true && rollback.stop_now !== true, `status=${rollback.status}, stop_now=${rollback.stop_now}`, "blocker");
+  add("pre_canary_load_guard_clear", loadGuard.ok === true, `status=${loadGuard.status}`, "blocker");
+  add("canary_ladder_clear", ladder.ok === true && ladder.stop_now !== true, `status=${ladder.status}, stop_now=${ladder.stop_now}`, "blocker");
   add("scanner_workers_min_ready", scannerWorkersAlive >= options.min_scanner_workers, `alive=${scannerWorkersAlive}, required=${options.min_scanner_workers}`, "blocker");
   add("scanner_active_shards_min_ready", activeShards >= options.min_active_shards, `active=${activeShards}, required=${options.min_active_shards}`, "blocker");
   add("scanner_duplicate_shards_zero", duplicateShards.length === 0, `duplicates=${duplicateShards.join(",") || "0"}`, "blocker");
@@ -9021,7 +9034,7 @@ async function buildLoadStageGateReport(snapshot, dbAudit, orderRefresh, options
   add("refund_retry_pending_zero", retryPendingRefunds === 0, `retry_pending=${retryPendingRefunds}`, "blocker");
   add("refund_failed_zero", failedRefunds === 0, `failed=${failedRefunds}`, "blocker");
   add("refund_stale_processing_zero", staleRefunds === 0, `stale=${staleRefunds}`, "blocker");
-  add("stage_canary_clean", matchedSuccessUsers >= options.required_clean_users && remoteConfirmedRefundUsers >= options.required_clean_users, `matched=${matchedSuccessUsers}, remote_confirmed=${remoteConfirmedRefundUsers}, required=${options.required_clean_users}`, "stage_hold");
+  add("stage_canary_clean", stageReport.stage_allowed === true, `stage=${options.target_stage}, status=${stageReport.status}`, "stage_hold");
   add("matched_success_users_ready", matchedSuccessUsers >= options.required_clean_users, `matched=${matchedSuccessUsers}, required=${options.required_clean_users}`, "stage_hold");
   add("remote_confirmed_refunds_ready", remoteConfirmedRefundUsers >= options.required_clean_users, `remote_confirmed=${remoteConfirmedRefundUsers}, required=${options.required_clean_users}`, "stage_hold");
   add("read_only_load_smoke_evidence_fresh", evidence.ok === true, evidence.detail, "evidence_hold");
@@ -9034,12 +9047,16 @@ async function buildLoadStageGateReport(snapshot, dbAudit, orderRefresh, options
   }
 
   const blockers = [
-    ...checks.filter((item) => !item.ok && item.severity === "blocker")
+    ...checks.filter((item) => !item.ok && item.severity === "blocker"),
+    ...(Array.isArray(stageReport.blockers) ? stageReport.blockers.map((item) => ({ ...item, source: options.target_stage })) : []),
+    ...(Array.isArray(rollback.rollback_triggers) ? rollback.rollback_triggers.map((item) => ({ ...item, source: "rollback_command_center" })) : [])
   ];
   const stageHolds = checks.filter((item) => !item.ok && item.severity === "stage_hold");
   const evidenceHolds = checks.filter((item) => !item.ok && item.severity === "evidence_hold");
   const warnings = [
-    ...checks.filter((item) => !item.ok && item.severity === "warning")
+    ...checks.filter((item) => !item.ok && item.severity === "warning"),
+    ...(Array.isArray(stageReport.warnings) ? stageReport.warnings.map((item) => ({ ...item, source: options.target_stage })) : []),
+    ...(Array.isArray(loadGuard.warnings) ? loadGuard.warnings.map((item) => ({ ...item, source: "pre_canary_load_guard" })) : [])
   ];
   const uniqueBlockers = Array.from(new Map(blockers.map((item) => [`${item.source || "local"}:${item.name}:${item.detail}`, item])).values());
   const uniqueWarnings = Array.from(new Map(warnings.map((item) => [`${item.source || "local"}:${item.name}:${item.detail}`, item])).values());
@@ -9094,10 +9111,10 @@ async function buildLoadStageGateReport(snapshot, dbAudit, orderRefresh, options
       matched_success_users: matchedSuccessUsers,
       remote_confirmed_refund_users: remoteConfirmedRefundUsers,
       final_gate_status: snapshot?.gate?.status || "unknown",
-      redis_status: snapshot?.redis?.ok === true ? "ready" : "not_ready",
-      redis_deep_status: snapshot?.redis_deep?.ok === true ? "ready" : "not_ready",
-      signer_status: snapshot?.ton_signer?.ok === true ? "ready" : "not_ready",
-      stage_status: stageHolds.length ? `waiting_for_${options.previous_stage}_clean` : "clean"
+      rollback_status: rollback.status,
+      load_guard_status: loadGuard.status,
+      ladder_status: ladder.status,
+      stage_status: stageReport.status
     },
     required_readonly_test: {
       command: options.readonly_test_command,
@@ -9139,7 +9156,8 @@ async function buildLoad10kGateReport(snapshot, dbAudit, orderRefresh) {
     min_active_shards: Math.min(LOAD_GATE_10K_MIN_SCANNER_WORKERS, getRequiredActiveScannerShards()),
     max_pending_orders_warning: Math.max(OPS_LOAD_GUARD_MAX_PENDING_ORDERS, LOAD_GATE_10K_TARGET_USERS),
     load_evidence_env: "LOAD_10K_READONLY_SMOKE_PASSED_AT",
-    readonly_test_command: "node scripts/load-gate-ramp-readonly.cjs --profile 10k"
+    readonly_test_command: "node scripts/load-gate-ramp-readonly.cjs --profile 10k",
+    stage_report_builder: buildCanary10000ControlReport
   });
 }
 
@@ -9154,28 +9172,17 @@ async function buildLoad100kGateReport(snapshot, dbAudit, orderRefresh) {
     recommended_scanner_workers: LOAD_GATE_100K_RECOMMENDED_SCANNER_WORKERS,
     max_pending_orders_warning: Math.max(OPS_LOAD_GUARD_MAX_PENDING_ORDERS, LOAD_GATE_100K_TARGET_USERS),
     load_evidence_env: "LOAD_100K_READONLY_SMOKE_PASSED_AT",
-    readonly_test_command: "node scripts/load-gate-ramp-readonly.cjs --profile 100k"
+    readonly_test_command: "node scripts/load-gate-ramp-readonly.cjs --profile 100k",
+    stage_report_builder: buildCanary100000ControlReport
   });
 }
 
 async function buildLoadRampCommandCenterReport(snapshot, dbAudit, orderRefresh) {
-  const [load10k, load100k] = await Promise.all([
+  const [load10k, load100k, bigGate] = await Promise.all([
     buildLoad10kGateReport(snapshot, dbAudit, orderRefresh),
-    buildLoad100kGateReport(snapshot, dbAudit, orderRefresh)
+    buildLoad100kGateReport(snapshot, dbAudit, orderRefresh),
+    buildBigRealTest95GateReport(snapshot, dbAudit, orderRefresh)
   ]);
-  const bigGateBlockedByLoad = !load100k.safe_to_open_target_stage;
-  const bigGateStage = {
-    id: "big_real_test_95_gate",
-    target_users: "final_5_percent",
-    status: bigGateBlockedByLoad ? "locked_until_load_100k_gate" : "verify_dedicated_big_real_test_gate",
-    safe_to_run_readonly_load_test: false,
-    safe_to_open_target_stage: false,
-    blockers_count: bigGateBlockedByLoad ? 0 : 0,
-    holds_count: 1,
-    warnings_count: 0,
-    endpoint: "/ops/big-real-test-95-gate/summary?fresh=true",
-    note: "Kept as a separate heavy final gate so the load ramp command center stays fast."
-  };
   const stages = [
     {
       id: "load_10k_gate",
@@ -9199,12 +9206,22 @@ async function buildLoadRampCommandCenterReport(snapshot, dbAudit, orderRefresh)
       warnings_count: load100k.warnings_count,
       endpoint: "/ops/load-100k-gate/summary?fresh=true"
     },
-    bigGateStage
+    {
+      id: "big_real_test_95_gate",
+      target_users: "final_5_percent",
+      status: bigGate.status,
+      safe_to_run_readonly_load_test: false,
+      safe_to_open_target_stage: bigGate.ready_for_big_real_test_final_5_percent,
+      blockers_count: bigGate.blockers_count,
+      holds_count: bigGate.ready_for_big_real_test_final_5_percent ? 0 : 1,
+      warnings_count: bigGate.warnings_count,
+      endpoint: "/ops/big-real-test-95-gate/summary?fresh=true"
+    }
   ];
   const stopNow = stages.some((stage) => stage.blockers_count > 0);
   const current = stages.find((stage) => !stage.safe_to_open_target_stage) || stages[stages.length - 1];
   return {
-    status: stopNow ? "blocked" : (current.id === "big_real_test_95_gate" ? "load_gates_clear_verify_final_gate_separately" : `current_${current.id}`),
+    status: stopNow ? "blocked" : (current.id === "big_real_test_95_gate" && current.safe_to_open_target_stage ? "ready_for_final_5_percent" : `current_${current.id}`),
     ok: !stopNow,
     checked_at: new Date().toISOString(),
     version: BACKEND_VERSION,
@@ -9224,15 +9241,13 @@ async function buildLoadRampCommandCenterReport(snapshot, dbAudit, orderRefresh)
       "Complete canary ladder stages in order.",
       "Run 10k read-only load gate before 10k traffic.",
       "Run 100k read-only load gate before 100k traffic.",
-      "Verify the dedicated big-real-test-95 gate separately before the final 5 percent."
+      "Keep big real test locked until the final 5 percent."
     ],
     next_step: stopNow
       ? "Fix blocker before continuing."
       : (current.safe_to_run_readonly_load_test && !current.safe_to_open_target_stage
         ? `Run read-only load test for ${current.id}.`
-        : (current.id === "big_real_test_95_gate"
-          ? "Load gates are clear; verify /ops/big-real-test-95-gate/summary separately before the final 5 percent."
-          : `Continue the stage ladder until ${current.id} opens.`))
+        : `Continue the stage ladder until ${current.id} opens.`)
   };
 }
 
