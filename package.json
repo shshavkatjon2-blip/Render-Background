@@ -32,6 +32,8 @@
     "closeout:kit": "node scripts/generate-closeout-execution-kit-1_5m.js",
     "ops:infra-autopilot": "node scripts/generate-infra-autopilot-kit-1_5m.js",
     "ops:scanner-blueprints": "node scripts/generate-scanner-worker-blueprints-1_5m.js",
+    "ops:scanner-blueprint:128": "node scripts/prepare-render-128-workers.cjs",
+    "verify:scanner-blueprint:128": "node scripts/prepare-render-128-workers.cjs --check",
     "verify:render-env-file": "node scripts/verify-render-env-file-1_5m.js",
     "verify:signer-keys": "node scripts/verify-signer-keys-dir-1_5m.js",
     "verify:security": "node scripts/verify-security-hardening-1_5m.js",

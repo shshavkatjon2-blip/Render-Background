@@ -1,0 +1,5764 @@
+# VidiPay scanner worker blueprint (128 shards).
+# Prepared for the 64-to-128 scanner rollout after the 10/10 canary gate is clean.
+# Keep production on render.64-workers.yaml until the rollout window; do not mix 64 and 128 workers.
+services:
+  - type: worker
+    name: vidipay-payment-scanner-128-0
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-0
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 0
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-1
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-1
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 1
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-2
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-2
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 2
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-3
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-3
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 3
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-4
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-4
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 4
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-5
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-5
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 5
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-6
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-6
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 6
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-7
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-7
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 7
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-8
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-8
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 8
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-9
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-9
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 9
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-10
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-10
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 10
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-11
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-11
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 11
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-12
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-12
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 12
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-13
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-13
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 13
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-14
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-14
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 14
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-15
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-15
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 15
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-16
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-16
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 16
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-17
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-17
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 17
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-18
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-18
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 18
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-19
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-19
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 19
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-20
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-20
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 20
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-21
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-21
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 21
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-22
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-22
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 22
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-23
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-23
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 23
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-24
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-24
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 24
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-25
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-25
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 25
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-26
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-26
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 26
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-27
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-27
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 27
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-28
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-28
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 28
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-29
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-29
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 29
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-30
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-30
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 30
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-31
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-31
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 31
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-32
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-32
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 32
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-33
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-33
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 33
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-34
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-34
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 34
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-35
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-35
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 35
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-36
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-36
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 36
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-37
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-37
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 37
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-38
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-38
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 38
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-39
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-39
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 39
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-40
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-40
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 40
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-41
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-41
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 41
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-42
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-42
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 42
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-43
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-43
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 43
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-44
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-44
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 44
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-45
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-45
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 45
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-46
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-46
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 46
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-47
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-47
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 47
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-48
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-48
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 48
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-49
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-49
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 49
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-50
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-50
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 50
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-51
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-51
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 51
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-52
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-52
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 52
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-53
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-53
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 53
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-54
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-54
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 54
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-55
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-55
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 55
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-56
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-56
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 56
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-57
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-57
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 57
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-58
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-58
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 58
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-59
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-59
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 59
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-60
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-60
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 60
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-61
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-61
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 61
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-62
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-62
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 62
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-63
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-63
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 63
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-64
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-64
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 64
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-65
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-65
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 65
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-66
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-66
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 66
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-67
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-67
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 67
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-68
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-68
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 68
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-69
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-69
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 69
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-70
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-70
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 70
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-71
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-71
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 71
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-72
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-72
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 72
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-73
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-73
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 73
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-74
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-74
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 74
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-75
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-75
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 75
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-76
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-76
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 76
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-77
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-77
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 77
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-78
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-78
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 78
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-79
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-79
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 79
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-80
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-80
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 80
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-81
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-81
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 81
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-82
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-82
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 82
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-83
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-83
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 83
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-84
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-84
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 84
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-85
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-85
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 85
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-86
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-86
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 86
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-87
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-87
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 87
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-88
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-88
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 88
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-89
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-89
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 89
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-90
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-90
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 90
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-91
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-91
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 91
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-92
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-92
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 92
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-93
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-93
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 93
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-94
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-94
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 94
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-95
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-95
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 95
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-96
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-96
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 96
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-97
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-97
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 97
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-98
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-98
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 98
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-99
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-99
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 99
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-100
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-100
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 100
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-101
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-101
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 101
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-102
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-102
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 102
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-103
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-103
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 103
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-104
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-104
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 104
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-105
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-105
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 105
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-106
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-106
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 106
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-107
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-107
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 107
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-108
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-108
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 108
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-109
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-109
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 109
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-110
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-110
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 110
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-111
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-111
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 111
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-112
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-112
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 112
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-113
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-113
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 113
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-114
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-114
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 114
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-115
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-115
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 115
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-116
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-116
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 116
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-117
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-117
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 117
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-118
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-118
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 118
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-119
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-119
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 119
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-120
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-120
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 120
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-121
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-121
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 121
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-122
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-122
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 122
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-123
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-123
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 123
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-124
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-124
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 124
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-125
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-125
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 125
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-126
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-126
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 126
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
+  - type: worker
+    name: vidipay-payment-scanner-128-127
+    runtime: node
+    plan: standard
+    buildCommand: node render-build-fix.cjs && npm install --omit=dev --no-audit --no-fund
+    startCommand: npm run start:scanner
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WORKER_MODE
+        value: scanner
+      - key: PAYMENT_SCANNER_ENABLED
+        value: true
+      - key: PAYMENT_SCANNER_WORKER_ID
+        value: scanner-128-127
+      - key: PAYMENT_SCANNER_SHARD_COUNT
+        value: 128
+      - key: PAYMENT_SCANNER_SHARD_INDEX
+        value: 127
+      - key: PAYMENT_SCAN_INTERVAL_MS
+        value: 3000
+      - key: PAYMENT_SCAN_BATCH_SIZE
+        value: 500
+      - key: PAYMENT_SCAN_CONCURRENCY
+        value: 32
+      - key: PAYMENT_SCAN_JITTER_MS
+        value: 2500
+      - key: PAYMENT_SCAN_ORDER_DELAY_MS
+        value: 10
+      - key: PAYMENT_SCAN_MAX_ERRORS_PER_RUN
+        value: 500
+      - key: TONAPI_REQUEST_TIMEOUT_MS
+        value: 12000
+      - key: TONAPI_RETRY_COUNT
+        value: 2
+      - key: TONAPI_RETRY_BASE_MS
+        value: 250
+      - key: TONAPI_BASE_URL
+        value: https://tonapi.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: TONAPI_KEY
+        sync: false
